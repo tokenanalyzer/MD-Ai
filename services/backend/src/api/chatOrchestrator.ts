@@ -1,5 +1,5 @@
 import type pg from "pg";
-import type { ChatMessage } from "@mdai/shared-types";
+import type { ChatMessage, ModelRegistry, RoutingMode, TaskCategory } from "@mdai/shared-types";
 import type { EventBus } from "../core/events/eventBus.js";
 import type { TaskRow } from "../db/repositories/taskRepo.js";
 import { updateTaskState } from "../db/repositories/taskRepo.js";
@@ -9,11 +9,14 @@ import { publishChunk, finishTask } from "./ws/chatStreamHub.js";
 export interface StartMasterAgentTaskInput {
   pool: pg.Pool;
   eventBus: EventBus;
+  modelRegistry: ModelRegistry;
   task: TaskRow;
   messages: ChatMessage[];
   providerKeys: Record<string, string>;
   preferredProviderId?: string;
   preferredModelId?: string;
+  taskCategory?: TaskCategory;
+  routingMode?: RoutingMode;
 }
 
 const canceledTaskIds = new Set<string>();
@@ -45,11 +48,14 @@ export function startMasterAgentTask(input: StartMasterAgentTaskInput): void {
       for await (const chunk of runMasterAgentChat({
         pool,
         eventBus: input.eventBus,
+        modelRegistry: input.modelRegistry,
         task,
         messages: input.messages,
         providerKeys: input.providerKeys,
         preferredProviderId: input.preferredProviderId,
         preferredModelId: input.preferredModelId,
+        taskCategory: input.taskCategory,
+        routingMode: input.routingMode,
       })) {
         if (canceledTaskIds.has(task.id)) {
           await updateTaskState(pool, task.id, { state: "canceled", completedAt: true });

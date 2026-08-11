@@ -25,6 +25,8 @@ an edit to an already-applied one.
 | `0013_seed_providers.sql` | — | Seeds the built-in `providers` catalog (matches `core/providers/registry.ts`) |
 | `0014_seed_agents.sql` | — | Seeds the `master` agent row (the only agent implemented in M1) |
 | `0015_seed_default_models.sql` | — | Seeds one `model_registry` row per provider's M1 default model (matches `core/providers/registry.ts`'s `PROVIDER_DEFAULT_MODELS`) so `tasks.model_id`'s foreign key always has a valid target |
+| `0016_model_registry_telemetry.sql` | — | M2: adds `model_registry.supports_structured_output`; adds `model_call_samples.provider_id`/`task_category`/`timed_out`/`used_as_fallback`/`input_tokens`/`output_tokens`/`response_status` |
+| `0017_backfill_default_model_capabilities.sql` | — | M2: backfills accurate capability data (context length, tool/vision/reasoning/structured-output support) for the five M1-seeded default models, mirroring `core/router/capabilityCatalog.ts` |
 
 ## 2. Relationship overview
 
@@ -101,6 +103,24 @@ any table. `key_last4` is a display-only fragment reported by the client
 after a successful local test, not derived from anything the server holds.
 See `07-security-model.md` §3 for the full rationale and the boundary of a
 possible future, explicitly opt-in server-side secret mechanism.
+
+**`model_call_samples` never contains a secret or prompt content — only
+call metadata.** `provider_id`, `task_category`, `latency_ms`,
+`success`/`timed_out`/`used_as_fallback`, `input_tokens`/`output_tokens`
+(counts, not content), and `response_status` (an HTTP status or a
+provider `finish_reason` string). This is enforced structurally: the
+telemetry write path (`core/router/modelRouter.ts`'s `onCallSample`) only
+ever receives values computed from response *metadata* (byte counts,
+timing, status codes), never the request/response bodies themselves — see
+`07-security-model.md` §4.
+
+**`model_registry` is reset to test-safe defaults between test runs, not
+left as global mutable state.** `discoverModels()`/`applyHealthRollup()`
+mutate the same five seeded rows other integration tests depend on having
+known capability data — `services/backend/test/helpers/testDb.ts` resets
+those rows (and deletes anything test-discovered beyond them) between
+tests specifically to avoid one test file's discovery/telemetry output
+silently changing another's routing decisions.
 
 ## 4. Retention
 

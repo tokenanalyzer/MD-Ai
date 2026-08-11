@@ -24,10 +24,34 @@ export const patchProviderConfigBodySchema = z.object({
   isDefault: z.boolean().optional(),
 });
 
+export const setDefaultModelBodySchema = z.object({
+  modelId: z.string().min(1),
+});
+
+export const patchModelBodySchema = z.object({
+  // Model registry ids contain "/" (e.g. "groq/llama-3.3-70b-versatile"),
+  // which doesn't survive as an Express route param cleanly — passed in
+  // the body instead of the URL for this one route.
+  modelId: z.string().min(1),
+  userEnabled: z.boolean().optional(),
+  userPriority: z.number().int().min(-100).max(100).optional(),
+});
+
 export const partSchema = z.object({
   type: z.literal("text"),
   text: z.string().min(1),
 });
+
+export const taskCategorySchema = z.enum([
+  "chat",
+  "reasoning",
+  "research",
+  "long-context",
+  "vision",
+  "tool-calling",
+  "structured-output",
+  "fast",
+]);
 
 export const sendMessageBodySchema = z.object({
   parts: z.array(partSchema).min(1),
@@ -36,6 +60,9 @@ export const sendMessageBodySchema = z.object({
   }),
   preferredProviderId: z.string().optional(),
   preferredModelId: z.string().optional(),
+  taskCategory: taskCategorySchema.optional(),
+  /** "manual" requires preferredProviderId (and normally preferredModelId) — see routes/conversations.ts. */
+  routingMode: z.enum(["auto", "manual"]).optional(),
 });
 
 export const createConversationBodySchema = z.object({

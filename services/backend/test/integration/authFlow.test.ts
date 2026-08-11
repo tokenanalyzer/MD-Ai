@@ -5,6 +5,7 @@ import pino from "pino";
 import { Redis } from "ioredis";
 import { createApp } from "../../src/api/app.js";
 import { EventBus } from "../../src/core/events/eventBus.js";
+import { ModelRegistryService } from "../../src/core/registry/modelRegistryService.js";
 import { ensureOwner } from "../../src/db/repositories/ownerRepo.js";
 import { generatePairingCode } from "../../src/core/security/pairing.js";
 import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
@@ -12,7 +13,8 @@ import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js"
 const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), logger });
+const modelRegistry = new ModelRegistryService(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, logger });
 
 beforeEach(async () => {
   await resetTestData(pool);

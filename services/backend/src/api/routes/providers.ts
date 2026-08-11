@@ -1,20 +1,25 @@
 import { Router } from "express";
 import type pg from "pg";
+import type { ModelRegistry } from "@mdai/shared-types";
 import { authGuard } from "../middleware/authGuard.js";
 import { AppError } from "../errors.js";
-import { patchProviderConfigBodySchema, testConnectionBodySchema } from "../schemas.js";
+import { patchProviderConfigBodySchema, setDefaultModelBodySchema, testConnectionBodySchema } from "../schemas.js";
 import { getProviderAdapter, KNOWN_PROVIDER_IDS } from "../../core/providers/registry.js";
+import { discoverModels } from "../../core/registry/discovery.js";
 import {
   deleteProviderConfig,
   getProvider,
   getProviderConfigById,
+  getProviderDefaultModel,
   listProviderConfigs,
   listProviders,
   setDefaultProviderConfig,
+  setProviderDefaultModel,
   upsertProviderConfigStatus,
+  type ProviderConfigRow,
 } from "../../db/repositories/providerRepo.js";
 
-function toProviderConfigDto(row: Awaited<ReturnType<typeof listProviderConfigs>>[number]) {
+async function toProviderConfigDto(pool: pg.Pool, row: ProviderConfigRow) {
   return {
     id: row.id,
     providerId: row.provider_id,
@@ -24,10 +29,11 @@ function toProviderConfigDto(row: Awaited<ReturnType<typeof listProviderConfigs>
     lastTestAt: row.last_test_at?.toISOString(),
     lastTestError: row.last_test_error,
     isDefault: row.is_default,
+    defaultModelId: await getProviderDefaultModel(pool, row.id),
   };
 }
 
-export function providersRouter(pool: pg.Pool): Router {
+export function providersRouter(pool: pg.Pool, modelRegistry: ModelRegistry): Router {
   const router = Router();
   router.use(authGuard(pool));
 
@@ -53,7 +59,7 @@ export function providersRouter(pool: pg.Pool): Router {
       const provider = await getProvider(pool, req.params.id as string);
       if (!provider) throw AppError.notFound(`Unknown provider: ${req.params.id}`);
       const configs = await listProviderConfigs(pool, req.params.id);
-      res.json({ data: configs.map(toProviderConfigDto) });
+      res.json({ data: await Promise.all(configs.map((c) => toProviderConfigDto(pool, c))) });
     } catch (err) {
       next(err);
     }
@@ -79,7 +85,21 @@ export function providersRouter(pool: pg.Pool): Router {
         keyLast4,
         lastTestError: result.ok ? undefined : result.error,
       });
-      res.json({ data: { result: { ok: result.ok, latencyMs: result.latencyMs, error: result.error }, config: toProviderConfigDto(config) } });
+
+      // M2.1: a successful test is also a discovery opportunity — the
+      // caller just proved they hold a working key, and the adapter
+      // already fetched the model list to run the test.
+      if (result.ok && result.discoveredModels && result.discoveredModels.length > 0) {
+        await discoverModels(modelRegistry, providerId, result.discoveredModels);
+      }
+
+      res.json({
+        data: {
+          result: { ok: result.ok, latencyMs: result.latencyMs, error: result.error },
+          config: await toProviderConfigDto(pool, config),
+          discoveredModelCount: result.discoveredModels?.length ?? 0,
+        },
+      });
     } catch (err) {
       next(err);
     }
@@ -94,7 +114,24 @@ export function providersRouter(pool: pg.Pool): Router {
       if (!existing) throw AppError.notFound("Provider config not found");
       if (body.isDefault) await setDefaultProviderConfig(pool, existing.id);
       const updated = await getProviderConfigById(pool, existing.id);
-      res.json({ data: toProviderConfigDto(updated!) });
+      res.json({ data: await toProviderConfigDto(pool, updated!) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // M2.5: per-provider default model picker.
+  router.put("/:id/configs/:configId/default-model", async (req, res, next) => {
+    try {
+      const body = setDefaultModelBodySchema.parse(req.body);
+      const existing = await getProviderConfigById(pool, req.params.configId as string);
+      if (!existing) throw AppError.notFound("Provider config not found");
+      const model = await modelRegistry.get(body.modelId);
+      if (!model || model.providerId !== existing.provider_id) {
+        throw AppError.badRequest(`${body.modelId} is not a known model for provider ${existing.provider_id}`);
+      }
+      await setProviderDefaultModel(pool, existing.id, body.modelId);
+      res.json({ data: await toProviderConfigDto(pool, existing) });
     } catch (err) {
       next(err);
     }

@@ -24,24 +24,28 @@ see §6.
 | OS + Docker overhead | ~1 GB | |
 | **Headroom** | **~5 GB** | Reserved — no service is sized to consume it by default; available for the n8n container (M10, optional) or traffic spikes |
 
-### 2.1 M1 conservative start
+### 2.1 M1→M2 conservative start
 
-M1 runs the smallest slice that proves the real chat path end-to-end, and
-nothing beyond it:
+M1 and M2 run the smallest slice that proves the real chat path (M1) and
+model registry/routing (M2) end-to-end, and nothing beyond it:
 
-- **Running**: `backend` (API + WS gateway), `postgres`, `redis`, one
-  BullMQ worker process **inside the backend process** (not a separate
-  container yet — see §3) handling exactly one job type: the events
-  retention sweep (`docs/architecture/02-database-schema.md` §4).
-- **Explicitly not started in M1**: the Bot Engine's bot fleet (no bots are
-  registered/scheduled yet — see `09-roadmap.md` M5/M8), the Evolution
-  Engine, and any autonomous background agent work. There is nothing for a
-  bot to run yet and no server-side key for one to use even if there were
-  (`07-security-model.md` §3.4), so this isn't a deferred feature so much
-  as a non-goal for this milestone specifically.
-- **Worker count**: 1 (the in-process BullMQ worker). This is itself a
-  telemetry value (§9.1) so growth is visible as later milestones add
-  bots.
+- **Running**: `backend` (API + WS gateway), `postgres`, `redis`, two
+  BullMQ worker processes **inside the backend process** (not separate
+  containers — see §3): the M1 events-retention sweep
+  (`docs/architecture/02-database-schema.md` §4, every 6h) and the M2
+  model-health rollup (`docs/architecture/06-provider-model-interfaces.md`
+  §5, every 5min — more frequent because it's what keeps the AUTO
+  router's health data fresh, and both jobs are cheap enough at single-user
+  call volume that the extra cadence costs nothing measurable).
+- **Explicitly not started through M2**: the Bot Engine's bot fleet (no
+  bots are registered/scheduled yet — see `09-roadmap.md` M5/M8), the
+  Evolution Engine, and any autonomous background agent work. There is
+  nothing for a bot to run yet and no server-side key for one to use even
+  if there were (`07-security-model.md` §3.4), so this isn't a deferred
+  feature so much as a non-goal for these milestones specifically.
+- **Worker count**: 2 (both in-process BullMQ workers, as of M2 — was 1 in
+  M1). This is itself a telemetry value (§9.1) so growth is visible as
+  later milestones add bots.
 
 ## 3. Container topology
 

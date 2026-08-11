@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { cancelTask, createConversation, sendMessage } from "../api/client";
+import { cancelTask, createConversation, sendMessage, type RoutingMode } from "../api/client";
 import { buildProviderKeysForRequest } from "../security/secureVault";
 import { openTaskStream } from "../realtime/chatSocket";
 
@@ -21,9 +21,14 @@ interface ChatState {
   lastError: string | null;
   activeTaskId: string | null;
   preferredProviderId?: string;
+  preferredModelId?: string;
+  /** M2.5: AUTO defers to the deterministic scoring router; MANUAL always uses preferredProviderId/preferredModelId exactly. */
+  routingMode: RoutingMode;
 
   ensureConversation: () => Promise<string>;
   setPreferredProvider: (providerId?: string) => void;
+  setManualModel: (providerId: string, modelId?: string) => void;
+  setRoutingMode: (mode: RoutingMode) => void;
   send: (text: string) => Promise<void>;
   retryLast: () => Promise<void>;
   cancelActive: () => Promise<void>;
@@ -39,6 +44,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   lastError: null,
   activeTaskId: null,
   preferredProviderId: undefined,
+  preferredModelId: undefined,
+  routingMode: "auto",
 
   ensureConversation: async () => {
     const existing = get().conversationId;
@@ -49,6 +56,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setPreferredProvider: (providerId) => set({ preferredProviderId: providerId }),
+  setManualModel: (providerId, modelId) => set({ preferredProviderId: providerId, preferredModelId: modelId }),
+  setRoutingMode: (mode) => set({ routingMode: mode }),
 
   send: async (text: string) => {
     lastUserText = text;
@@ -57,6 +66,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (Object.keys(providerKeys).length === 0) {
       set({ connection: "error", lastError: "No provider configured yet — add an API key in Settings first." });
+      return;
+    }
+    if (get().routingMode === "manual" && !get().preferredProviderId) {
+      set({ connection: "error", lastError: "MANUAL mode needs a provider selected in the Vault screen first." });
       return;
     }
 
@@ -73,6 +86,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         text,
         providerKeys,
         preferredProviderId: get().preferredProviderId,
+        preferredModelId: get().preferredModelId,
+        routingMode: get().routingMode,
       });
       set({ activeTaskId: task.id });
 

@@ -14,7 +14,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   /** Skip the Authorization header — only /auth/pair and /auth/refresh. */
   unauthenticated?: boolean;
@@ -92,6 +92,33 @@ export interface ProviderConfigDto {
   lastTestAt?: string;
   lastTestError?: string | null;
   isDefault: boolean;
+  defaultModelId?: string;
+}
+
+export interface ModelCapabilitiesDto {
+  contextLength: number;
+  supportsTools: boolean;
+  supportsVision: boolean;
+  supportsReasoning: boolean;
+  supportsStreaming: boolean;
+  supportsStructuredOutput: boolean;
+  modality: "text" | "multimodal";
+  tags: string[];
+}
+
+export interface ModelRegistryEntryDto {
+  id: string;
+  providerId: string;
+  providerModelRef: string;
+  displayName: string;
+  capabilities: ModelCapabilitiesDto;
+  availability: "available" | "degraded" | "unavailable" | "unknown";
+  avgLatencyMs?: number;
+  errorRatePct?: number;
+  lastVerifiedAt?: string;
+  userEnabled: boolean;
+  userPriority: number;
+  discoveredBy: "manual" | "evolution_engine";
 }
 
 export function listProviders(): Promise<ProviderDto[]> {
@@ -105,7 +132,11 @@ export function listProviderConfigs(providerId: string): Promise<ProviderConfigD
 export function testProviderConnection(
   providerId: string,
   apiKey: string,
-): Promise<{ result: { ok: boolean; latencyMs?: number; error?: string }; config: ProviderConfigDto }> {
+): Promise<{
+  result: { ok: boolean; latencyMs?: number; error?: string };
+  config: ProviderConfigDto;
+  discoveredModelCount: number;
+}> {
   return request(`/providers/${providerId}/test-connection`, { method: "POST", body: { apiKey } });
 }
 
@@ -113,8 +144,26 @@ export function setDefaultProviderConfig(providerId: string, configId: string): 
   return request(`/providers/${providerId}/configs/${configId}`, { method: "PATCH", body: { isDefault: true } });
 }
 
+export function setProviderDefaultModel(providerId: string, configId: string, modelId: string): Promise<ProviderConfigDto> {
+  return request(`/providers/${providerId}/configs/${configId}/default-model`, { method: "PUT", body: { modelId } });
+}
+
 export function deleteProviderConfig(providerId: string, configId: string): Promise<void> {
   return request(`/providers/${providerId}/configs/${configId}`, { method: "DELETE" });
+}
+
+// ---- model registry (M2.1/M2.5) -----------------------------------------------
+
+export function listModels(providerId?: string): Promise<ModelRegistryEntryDto[]> {
+  const qs = providerId ? `?providerId=${encodeURIComponent(providerId)}` : "";
+  return request(`/models${qs}`);
+}
+
+export function setModelUserConfig(
+  modelId: string,
+  patch: { userEnabled?: boolean; userPriority?: number },
+): Promise<ModelRegistryEntryDto> {
+  return request("/models", { method: "PATCH", body: { modelId, ...patch } });
 }
 
 // ---- conversations / chat -----------------------------------------------------
@@ -134,6 +183,18 @@ export function createConversation(title?: string): Promise<{ id: string; title:
   return request("/conversations", { method: "POST", body: { title } });
 }
 
+export type TaskCategory =
+  | "chat"
+  | "reasoning"
+  | "research"
+  | "long-context"
+  | "vision"
+  | "tool-calling"
+  | "structured-output"
+  | "fast";
+
+export type RoutingMode = "auto" | "manual";
+
 export function sendMessage(
   conversationId: string,
   input: {
@@ -141,6 +202,8 @@ export function sendMessage(
     providerKeys: Record<string, string>;
     preferredProviderId?: string;
     preferredModelId?: string;
+    taskCategory?: TaskCategory;
+    routingMode?: RoutingMode;
   },
 ): Promise<TaskDto> {
   return request(`/conversations/${conversationId}/messages`, {
@@ -150,6 +213,8 @@ export function sendMessage(
       providerKeys: input.providerKeys,
       preferredProviderId: input.preferredProviderId,
       preferredModelId: input.preferredModelId,
+      taskCategory: input.taskCategory,
+      routingMode: input.routingMode,
     },
   });
 }

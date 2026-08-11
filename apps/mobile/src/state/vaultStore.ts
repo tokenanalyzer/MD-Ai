@@ -1,10 +1,13 @@
 import { create } from "zustand";
 import {
   deleteProviderConfig,
+  listModels,
   listProviderConfigs,
   listProviders,
   setDefaultProviderConfig,
+  setProviderDefaultModel,
   testProviderConnection,
+  type ModelRegistryEntryDto,
   type ProviderConfigDto,
   type ProviderDto,
 } from "../api/client";
@@ -13,6 +16,7 @@ import { deleteProviderKey, setProviderKey } from "../security/secureVault";
 export interface ProviderVaultEntry {
   provider: ProviderDto;
   configs: ProviderConfigDto[];
+  models: ModelRegistryEntryDto[];
   testing: boolean;
   testError: string | null;
 }
@@ -24,6 +28,7 @@ interface VaultState {
   addAndTestKey: (providerId: string, apiKey: string) => Promise<void>;
   removeKey: (providerId: string, configId: string) => Promise<void>;
   setDefault: (providerId: string, configId: string) => Promise<void>;
+  setDefaultModel: (providerId: string, configId: string, modelId: string) => Promise<void>;
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -36,8 +41,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const providers = await listProviders();
       const entries: Record<string, ProviderVaultEntry> = {};
       for (const provider of providers) {
-        const configs = await listProviderConfigs(provider.id);
-        entries[provider.id] = { provider, configs, testing: false, testError: null };
+        const [configs, models] = await Promise.all([listProviderConfigs(provider.id), listModels(provider.id)]);
+        entries[provider.id] = { provider, configs, models, testing: false, testError: null };
       }
       set({ entries, loading: false });
     } catch (err) {
@@ -56,9 +61,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
     // 2. Transient test call — the backend uses this key once and never stores it
     //    (docs/architecture/07-security-model.md §3). We only keep the
-    //    non-secret status/last4 it reports back.
+    //    non-secret status/last4 it reports back. A successful test also
+    //    triggers server-side model discovery (M2.1) — refresh the model
+    //    list so newly-discovered models show up without a manual reload.
     try {
       const { result, config } = await testProviderConnection(providerId, apiKey);
+      const models = result.ok ? await listModels(providerId) : get().entries[providerId]?.models ?? [];
       set((s) => {
         const entry = s.entries[providerId]!;
         const others = entry.configs.filter((c) => c.id !== config.id);
@@ -68,6 +76,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
             [providerId]: {
               ...entry,
               configs: [...others, config],
+              models,
               testing: false,
               testError: result.ok ? null : (result.error ?? "Connection failed"),
             },
@@ -108,6 +117,20 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   setDefault: async (providerId, configId) => {
     const updated = await setDefaultProviderConfig(providerId, configId);
+    set((s) => {
+      const entry = s.entries[providerId];
+      if (!entry) return s;
+      return {
+        entries: {
+          ...s.entries,
+          [providerId]: { ...entry, configs: entry.configs.map((c) => (c.id === updated.id ? updated : c)) },
+        },
+      };
+    });
+  },
+
+  setDefaultModel: async (providerId, configId, modelId) => {
+    const updated = await setProviderDefaultModel(providerId, configId, modelId);
     set((s) => {
       const entry = s.entries[providerId];
       if (!entry) return s;

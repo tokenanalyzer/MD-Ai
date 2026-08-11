@@ -19,18 +19,25 @@ always-on backend.
 | [07-security-model.md](docs/architecture/07-security-model.md) | Key vault, auth, bounded self-modification |
 | [08-deployment-architecture.md](docs/architecture/08-deployment-architecture.md) | Oracle Cloud topology, self-healing, CI/CD |
 | [09-roadmap.md](docs/architecture/09-roadmap.md) | Milestone sequence M0–M10 |
+| [10-android-setup.md](docs/architecture/10-android-setup.md) | Android verification status, how to run on a real device |
 
 ## Status
 
-**M0 (foundation architecture) and M1 (first working chat path) are
-delivered.** Backend: real Postgres/Redis-backed API + WS server, device
-pairing/auth, on-device provider key vault contract, all five provider
-adapters, Model Router with retry/circuit-breaker/fallback, Master Agent,
-event bus, resource telemetry — 42 automated tests passing (unit +
-integration, real DB, mocked provider HTTP). Mobile: pairing, Provider
-Vault, and chat screens implemented against the same contracts, not yet
-run on-device (no Android tooling in the environment this was built in).
-See `09-roadmap.md` for exact scope and the next milestone (M2).
+**M0 (foundation architecture), M1 (first working chat path), and M2
+(Model Registry + capability-aware scoring router) are delivered.**
+Backend: real Postgres/Redis-backed API + WS server, device pairing/auth,
+on-device provider key vault contract, all five provider adapters, a
+DB-backed Model Registry with discovery + telemetry-driven health rollup,
+a deterministic AUTO scoring router (capability matrix, retry,
+circuit-breaker, fallback) plus a MANUAL pin mode, Master Agent, event
+bus, resource telemetry — 83 backend automated tests + 11 mobile
+pure-logic tests, all passing (real Postgres/Redis, mocked provider HTTP).
+Mobile: pairing, Provider Vault (keys, models, default-model picker,
+AUTO/MANUAL toggle), and chat screens implemented against the same
+contracts; the whole mobile workspace typechecks cleanly, but has not run
+on a real Android device/emulator (no Android tooling in the environment
+this was built in — see `10-android-setup.md`). See `09-roadmap.md` for
+exact scope and the next milestone (M3).
 
 Quickstart (backend):
 ```sh

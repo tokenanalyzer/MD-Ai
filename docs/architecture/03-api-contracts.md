@@ -32,15 +32,20 @@ Common envelope:
 | `GET` | `/conversations` | → `Conversation[]` (paginated) |
 | `POST` | `/conversations` | `{ title? }` → `Conversation` |
 | `GET` | `/conversations/:id/tasks` | → `Task[]` with nested `task_messages` |
-| `POST` | `/conversations/:id/messages` | `{ parts: Part[], providerKeys, preferredProviderId?, preferredModelId? }` → `Task` (creates a `master` task; state starts `submitted`). Text, image, file, and PDF parts all go through this one endpoint — see §6. |
+| `POST` | `/conversations/:id/messages` | `{ parts: Part[], providerKeys, preferredProviderId?, preferredModelId?, taskCategory?, routingMode? }` → `Task` (creates a `master` task; state starts `submitted`). Text, image, file, and PDF parts all go through this one endpoint — see §6. |
 | `POST` | `/tasks/:id/cancel` | `{ reason? }` → `204` |
 | `WS` | `/ws/tasks/:id` | Server→client `TaskStreamChunk` frames (see below) |
 
 `providerKeys` is `{ [providerId: string]: string }` — the app includes a
 key **only** for providers it currently has unlocked in its local vault
-and is willing to let this request use. The Model Router (§`06-provider-model-interfaces.md`)
-picks `preferredProviderId`'s key first and falls back to any other key
-present in the map, in ranked order, on failure. None of these keys are
+and is willing to let this request use. `taskCategory` (one of `chat`,
+`reasoning`, `research`, `long-context`, `vision`, `tool-calling`,
+`structured-output`, `fast`) tells the AUTO router's capability matrix
+what this message actually needs — omit it and every model qualifies.
+`routingMode` is `"auto"` (default) or `"manual"`; `"manual"` requires
+`preferredProviderId` and always uses exactly that provider/model with no
+scoring or cross-model fallback — see `06-provider-model-interfaces.md`
+§4 for the full algorithm both modes run. None of these keys are
 ever written to a database row; they exist only in the request handler's
 memory for the lifetime of the call (typically a few seconds for a
 streamed response) — see `07-security-model.md` §3 for the exact
@@ -64,16 +69,22 @@ persist only non-secret status metadata as a side effect.
 |---|---|---|
 | `GET` | `/providers` | → `Provider[]` (built-in + user-added catalog, no per-user state) |
 | `GET` | `/providers/:id/configs` | → `ProviderConfig[]` — status metadata only: `keyLast4`, `status`, `isDefault`, `label`, `lastTestAt`. **No `apiKey` field exists on this type.** |
-| `POST` | `/providers/:id/test-connection` | `{ apiKey, label? }` → `ConnectionTestResult`. The backend calls the provider's adapter with this key **in memory only**, returns the result, and upserts the matching `provider_configs` row's `status`/`last_test_at`/`last_test_error`/`key_last4` (the last-4 fragment is computed from the key `POST`ed for this one call, then the key itself is discarded — never written anywhere). |
+| `POST` | `/providers/:id/test-connection` | `{ apiKey, label? }` → `{ result: ConnectionTestResult, config: ProviderConfig, discoveredModelCount }`. The backend calls the provider's adapter with this key **in memory only**, returns the result, and upserts the matching `provider_configs` row's `status`/`last_test_at`/`last_test_error`/`key_last4` (the last-4 fragment is computed from the key `POST`ed for this one call, then the key itself is discarded — never written anywhere). On success, also feeds the Model Registry discovery pipeline (§3.1) using the model list the adapter already fetched to run the test — no extra request. |
 | `PATCH` | `/providers/:id/configs/:configId` | `{ label?, isDefault? }` → `ProviderConfig`. Metadata-only edit — there is no way to set/replace a key through this route. |
+| `PUT` | `/providers/:id/configs/:configId/default-model` | `{ modelId }` → `ProviderConfig` (now carrying `defaultModelId`). Sets which registry model this provider config should be used with by default — surfaced in the Vault UI's per-provider default-model picker (M2.5) and given a ranking bonus by the AUTO router (§`06-provider-model-interfaces.md` §4). |
 | `DELETE` | `/providers/:id/configs/:configId` | → `204`. Clears the backend's status metadata for that provider config. Does **not** touch the device's local vault — the app deletes the actual key from `expo-secure-store` itself and calls this separately so other devices stop seeing it as configured. |
-| `GET` | `/models` | `?providerId=&enabledOnly=` → `ModelRegistryEntry[]` |
-| `PATCH` | `/models/:id` | `{ userEnabled?, userPriority? }` → `ModelRegistryEntry` (user-facing model config only; capability/health fields are read-only here) |
 
 Chat requests (§2) that need a provider call attach the key(s) inline —
 see the `providerKeys` field on the WS message contract below — rather
 than the backend looking anything up by credential id, because the backend
 holds no credential to look up.
+
+### 3.1 Model Registry
+
+| Method | Path | Body → Response |
+|---|---|---|
+| `GET` | `/models` | `?providerId=&enabledOnly=` → `ModelRegistryEntry[]` — capabilities, availability/health, and user config for every known model. Populated by migration seed data plus whatever `test-connection` has discovered (see `06-provider-model-interfaces.md` §3). |
+| `PATCH` | `/models` | `{ modelId, userEnabled?, userPriority? }` → `ModelRegistryEntry`. `modelId` travels in the body rather than the URL because registry ids contain `/` (e.g. `groq/llama-3.3-70b-versatile`), which doesn't survive as an Express route param. Capability/health fields are read-only here — they come from discovery and the telemetry rollup, not user edits. |
 
 ## 4. Agents & bots
 

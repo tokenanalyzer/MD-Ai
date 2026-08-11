@@ -71,6 +71,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         supportsVision: false,
         supportsReasoning: false,
         supportsStreaming: true,
+        supportsStructuredOutput: false,
         modality: "text",
         tags: [],
       },

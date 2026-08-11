@@ -17,7 +17,8 @@ import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useChatStore } from "../../src/state/chatStore";
 
 export default function ChatScreen() {
-  const { messages, connection, lastError, send, retryLast, cancelActive, activeTaskId } = useChatStore();
+  const { messages, connection, lastError, send, retryLast, cancelActive, activeTaskId, routingMode, preferredModelId } =
+    useChatStore();
   const [draft, setDraft] = useState("");
   const listRef = useRef<FlatList>(null);
 
@@ -40,6 +41,9 @@ export default function ChatScreen() {
               {connection === "working" ? "Master Agent is answering…" : connection === "error" ? "Connection issue" : "Ready"}
             </Text>
           </View>
+          <Text style={styles.routingBadge}>
+            {routingMode === "manual" ? `MANUAL · ${preferredModelId ?? "pick a model in Vault"}` : "AUTO routing"}
+          </Text>
         </View>
         <Link href="/(vault)" asChild>
           <Pressable style={styles.settingsButton}>
@@ -105,6 +109,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
   statusRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   statusText: { color: colors.textSecondary, fontSize: typography.fontSize.xs },
+  routingBadge: { color: colors.secondary, fontSize: typography.fontSize.xs, marginTop: 2 },
   settingsButton: {
     borderWidth: 1,
     borderColor: colors.border,

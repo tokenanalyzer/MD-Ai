@@ -44,11 +44,36 @@ those changes are folded into the doc set as of M1.
   completion report delivered alongside this update for exact scope and
   known limitations.
 
-## M2 — Full provider abstraction + Model Router
-- Remaining four adapters (Nemotron, Gemini, Groq, SambaNova).
-- Model Registry populated (manual seed), health sampling, router ranking
-  + fallback chain, circuit breaker.
-- Vault UI: full multi-provider management, default model selection.
+## M2 — Model Registry, telemetry, capability-aware scoring router — **delivered**
+- Model Registry promoted to a first-class DB-backed subsystem
+  (`core/registry/modelRegistryService.ts`) with a 5s cache; `GET/PATCH
+  /models` implemented. Discovery wired into `test-connection` — a
+  successful key test now registers/refreshes every model the provider
+  reports, merged with a hand-curated capability catalog (unrecognized
+  models get conservative "unverified" defaults, never a name-based guess).
+- Model call telemetry (`model_call_samples`: latency, success/timeout/
+  used-as-fallback, approximate token counts, response status, task
+  category — never prompt content or secrets) recorded on every chat call;
+  a BullMQ job rolls the last 20 samples per model into
+  `availability`/`avg_latency_ms`/`error_rate_pct` every 5 minutes.
+- Capability Matrix (`core/router/capabilityMatrix.ts`): 8 explicit task
+  categories, each with hard capability/context-length requirements and
+  soft scoring preferences — no inference from model names or prompts.
+- Deterministic scoring router (AUTO): pure `scoreCandidate`/
+  `rankCandidates` functions combine capability fit, availability, latency,
+  error rate, and user priority/default into an inspectable
+  `ModelScoreBreakdown` per candidate, unit-tested without a database.
+  MANUAL mode pins exactly the requested provider/model with zero scoring
+  and zero cross-model fallback, per instruction.
+- Mobile Vault screen: per-provider model list (capabilities, health dot,
+  avg latency), default-model picker, and a global AUTO/MANUAL toggle
+  wired into every chat request.
+- 94 automated tests total (83 backend + 11 mobile pure-logic), all
+  passing against real Postgres/Redis; mobile workspace typechecks
+  cleanly end-to-end. **Not exercised**: the mobile app on a real Android
+  device/emulator — see `docs/architecture/10-android-setup.md` for the
+  exact verified/unverified split and the M2 completion report for full
+  detail.
 
 ## M3 — Agent Registry + A2A task layer + memory
 - `core/a2a` task state machine, delegation, `agent_delegation_edges`.

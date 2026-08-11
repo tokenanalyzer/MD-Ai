@@ -130,6 +130,13 @@ routed through this vault design:
   `docs/architecture/09-roadmap.md`) that sends a request containing a
   known fake key and asserts the key substring never appears in captured
   log output.
+- **M2 telemetry is metadata-only by construction.** `model_call_samples`
+  (docs/architecture/06-provider-model-interfaces.md §5) records latency,
+  success/failure, token *counts*, and status codes — values computed from
+  response metadata, never from the request/response bodies themselves.
+  There is no code path from a chat prompt or completion into a telemetry
+  row; `services/backend/test/integration/modelRegistry.test.ts` asserts a
+  recorded sample never matches a provider-key-shaped substring.
 
 ## 5. Bounded self-modification (Evolution Engine)
 

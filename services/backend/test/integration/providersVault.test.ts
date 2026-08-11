@@ -7,6 +7,7 @@ import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } 
 import { Writable } from "node:stream";
 import { createApp } from "../../src/api/app.js";
 import { EventBus } from "../../src/core/events/eventBus.js";
+import { ModelRegistryService } from "../../src/core/registry/modelRegistryService.js";
 import { ensureOwner } from "../../src/db/repositories/ownerRepo.js";
 import { generatePairingCode } from "../../src/core/security/pairing.js";
 import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
@@ -24,7 +25,8 @@ const captureStream = new Writable({
   },
 });
 const logger = pino({ level: "debug" }, captureStream);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), logger });
+const modelRegistry = new ModelRegistryService(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, logger });
 
 let mockAgent: MockAgent;
 let originalDispatcher: Dispatcher;

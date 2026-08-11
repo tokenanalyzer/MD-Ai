@@ -7,12 +7,18 @@ import { ensureOwner } from "./db/repositories/ownerRepo.js";
 import { listActiveSessions } from "./db/repositories/deviceSessionRepo.js";
 import { generatePairingCode } from "./core/security/pairing.js";
 import { EventBus } from "./core/events/eventBus.js";
+import { ModelRegistryService } from "./core/registry/modelRegistryService.js";
 import { getRedisConnection, closeRedisConnection } from "./queue/connection.js";
 import {
   createEventsRetentionQueue,
   createEventsRetentionWorker,
   scheduleEventsRetentionRepeatable,
 } from "./queue/eventsRetentionJob.js";
+import {
+  createHealthRollupQueue,
+  createHealthRollupWorker,
+  scheduleHealthRollupRepeatable,
+} from "./queue/healthRollupJob.js";
 import { createApp } from "./api/app.js";
 import { attachChatGateway } from "./api/ws/chatGateway.js";
 
@@ -34,12 +40,24 @@ async function main(): Promise<void> {
 
   const redis = getRedisConnection();
   const eventBus = new EventBus(pool);
+  const modelRegistry = new ModelRegistryService(pool);
 
   const eventsRetentionQueue = createEventsRetentionQueue();
   const eventsRetentionWorker = createEventsRetentionWorker(pool);
   await scheduleEventsRetentionRepeatable(eventsRetentionQueue);
 
-  const app = createApp({ pool, redis, queues: [eventsRetentionQueue], eventBus, logger });
+  const healthRollupQueue = createHealthRollupQueue();
+  const healthRollupWorker = createHealthRollupWorker(pool);
+  await scheduleHealthRollupRepeatable(healthRollupQueue);
+
+  const app = createApp({
+    pool,
+    redis,
+    queues: [eventsRetentionQueue, healthRollupQueue],
+    eventBus,
+    modelRegistry,
+    logger,
+  });
   const server = createServer(app);
   attachChatGateway(server, pool);
 
@@ -52,6 +70,8 @@ async function main(): Promise<void> {
     server.close();
     await eventsRetentionWorker.close();
     await eventsRetentionQueue.close();
+    await healthRollupWorker.close();
+    await healthRollupQueue.close();
     await closeRedisConnection();
     await closePool();
     process.exit(0);

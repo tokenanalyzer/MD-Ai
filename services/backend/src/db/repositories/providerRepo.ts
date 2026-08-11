@@ -93,3 +93,20 @@ export async function setDefaultProviderConfig(pool: pg.Pool, id: string): Promi
     [id],
   );
 }
+
+/** Sets which model a provider config should be used with by default (M2.5 default-model picker). */
+export async function setProviderDefaultModel(pool: pg.Pool, providerConfigId: string, modelId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO provider_default_models (provider_config_id, model_id) VALUES ($1, $2)
+     ON CONFLICT (provider_config_id) DO UPDATE SET model_id = EXCLUDED.model_id`,
+    [providerConfigId, modelId],
+  );
+}
+
+export async function getProviderDefaultModel(pool: pg.Pool, providerConfigId: string): Promise<string | undefined> {
+  const { rows } = await pool.query<{ model_id: string }>(
+    "SELECT model_id FROM provider_default_models WHERE provider_config_id = $1",
+    [providerConfigId],
+  );
+  return rows[0]?.model_id;
+}

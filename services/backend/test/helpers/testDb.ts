@@ -13,9 +13,27 @@ export async function getTestPool(): Promise<pg.Pool> {
 }
 
 /**
+ * The five model_registry rows seeded by migrations 0015/0017 — the only
+ * ones every test can rely on existing with known capability data.
+ * Anything else is test-induced (discovery, manual edits) and must not
+ * survive into the next test file.
+ */
+const SEEDED_MODEL_IDS = [
+  "nvidia-nemotron/nvidia/llama-3.1-nemotron-70b-instruct",
+  "gemini/gemini-1.5-flash",
+  "groq/llama-3.3-70b-versatile",
+  "sambanova/Meta-Llama-3.1-70B-Instruct",
+  "openrouter/meta-llama/llama-3.1-70b-instruct",
+];
+
+/**
  * Clears per-run data between tests while leaving the seeded catalog rows
  * (providers, agents — migrations 0013/0014) in place, since integration
- * tests rely on those FK targets existing.
+ * tests rely on those FK targets existing. `model_registry` is special:
+ * tests both read its seeded baseline AND mutate it (discovery, health
+ * rollup, user config), so it's reset to that baseline rather than left
+ * alone or fully truncated — either extreme breaks a different set of
+ * tests.
  */
 export async function resetTestData(p: pg.Pool): Promise<void> {
   await p.query(`
@@ -27,6 +45,14 @@ export async function resetTestData(p: pg.Pool): Promise<void> {
       device_sessions, owner, app_config
     RESTART IDENTITY CASCADE
   `);
+
+  await p.query("DELETE FROM model_registry WHERE id != ALL($1)", [SEEDED_MODEL_IDS]);
+  await p.query(`
+    UPDATE model_registry SET
+      availability = 'unknown', avg_latency_ms = NULL, error_rate_pct = NULL,
+      user_enabled = true, user_priority = 0
+    WHERE id = ANY($1)
+  `, [SEEDED_MODEL_IDS]);
 }
 
 export async function closeTestPool(): Promise<void> {

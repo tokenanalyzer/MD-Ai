@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type pg from "pg";
-import type { ChatMessage } from "@mdai/shared-types";
+import type { ChatMessage, ModelRegistry } from "@mdai/shared-types";
 import type { EventBus } from "../../core/events/eventBus.js";
 import { authGuard } from "../middleware/authGuard.js";
 import { AppError } from "../errors.js";
@@ -52,7 +52,7 @@ async function buildConversationHistory(pool: pg.Pool, conversationId: string): 
   return messages;
 }
 
-export function conversationsRouter(pool: pg.Pool, eventBus: EventBus): Router {
+export function conversationsRouter(pool: pg.Pool, eventBus: EventBus, modelRegistry: ModelRegistry): Router {
   const router = Router();
   router.use(authGuard(pool));
 
@@ -113,6 +113,9 @@ export function conversationsRouter(pool: pg.Pool, eventBus: EventBus): Router {
       if (!conversation) throw AppError.notFound("Conversation not found");
 
       const body = sendMessageBodySchema.parse(req.body);
+      if (body.routingMode === "manual" && !body.preferredProviderId) {
+        throw AppError.badRequest("routingMode 'manual' requires preferredProviderId");
+      }
       const task = await createTask(pool, {
         conversationId: conversation.id,
         assignedAgentId: "master",
@@ -133,11 +136,14 @@ export function conversationsRouter(pool: pg.Pool, eventBus: EventBus): Router {
       startMasterAgentTask({
         pool,
         eventBus,
+        modelRegistry,
         task,
         messages,
         providerKeys: body.providerKeys,
         preferredProviderId: body.preferredProviderId,
         preferredModelId: body.preferredModelId,
+        taskCategory: body.taskCategory,
+        routingMode: body.routingMode,
       });
 
       res.status(201).json({ data: toTaskDto(task) });
