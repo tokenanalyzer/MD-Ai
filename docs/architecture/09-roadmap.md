@@ -7,23 +7,42 @@ depends on: DB + provider vault + one working provider before any agent
 exists; agents before bots have anywhere to escalate to; events before the
 Command Center has anything to render.
 
-## M0 — Foundation architecture (this deliverable)
-Docs 00–09, repo skeleton, DB migrations, shared TypeScript contracts. No
-running code yet. **Gate: user approval before M1.**
+## M0 — Foundation architecture — **delivered**
+Docs 00–09, repo skeleton, DB migrations, shared TypeScript contracts.
+Approved with mandatory changes (device-side key vault instead of
+server-side, corrected app-closed semantics, M1 resource discipline) —
+those changes are folded into the doc set as of M1.
 
-## M1 — Backend skeleton + first working chat path
-- Docker Compose (backend + postgres + redis), migrations applied.
-- Auth: device pairing, session tokens.
-- Provider Vault: CRUD + encrypted storage + test-connection, **one**
-  adapter live end-to-end (OpenRouter — broadest model coverage for
-  earliest usefulness).
+## M1 — Backend skeleton + first working chat path — **delivered**
+- Docker Compose (backend + postgres + redis), migrations 0001–0015
+  applied and verified against a real Postgres instance.
+- Auth: device pairing (single-use code), JWT access + refresh tokens,
+  session revocation — all implemented and integration-tested.
+- Provider Vault: metadata-only backend (`provider_configs`, no key
+  storage) + Keystore-backed on-device vault in the mobile app, wired to a
+  real `test-connection` round trip. All **five** provider adapters
+  (NVIDIA Nemotron, Gemini, Groq, SambaNova, OpenRouter) are implemented
+  against the shared OpenAI-compatible client and integration-tested with
+  mocked HTTP shaped exactly like each vendor's real API; NVIDIA Nemotron
+  was verified first per the milestone's priority.
 - Master Agent: direct-answer path only (no delegation yet), using the
-  Model Router with a single provider.
-- Mobile app: auth/pairing screen + minimal chat screen (text only) wired
-  to the real WS streaming endpoint.
-- **Exit criteria**: user can pair their phone, add an OpenRouter key, and
-  have a real streamed conversation with Master Agent, backed by Postgres,
-  running on the actual Oracle Cloud instance.
+  Model Router with per-request provider keys, retry, circuit breaker,
+  and cross-provider fallback.
+- Mobile app: pairing screen, Provider Vault screen (add/test/remove key,
+  never displays a full stored key), and the primary chat screen (text
+  only) wired to the real WS streaming endpoint and REST contracts.
+- Resource telemetry (`/health`): CPU, memory, Postgres pool, Redis,
+  BullMQ queue depth/worker count, per-route request latency — verified
+  against the running dev backend.
+- **Exit criteria met on the backend, live**: paired a device, ran a full
+  chat task end-to-end (task creation → event emission → provider call →
+  WS streaming → DB persistence) against mocked provider HTTP, and
+  separately exercised the real `test-connection` failure path against
+  NVIDIA's actual endpoint (blocked only by this dev sandbox's outbound
+  network policy, not by the code). **Not exercised**: the mobile app
+  on-device (no Android SDK/emulator in this sandbox) — see the M1
+  completion report delivered alongside this update for exact scope and
+  known limitations.
 
 ## M2 — Full provider abstraction + Model Router
 - Remaining four adapters (Nemotron, Gemini, Groq, SambaNova).

@@ -5,8 +5,15 @@
 MD AI is a **private, single-user personal intelligence operating system**. One
 person (the owner) interacts with it primarily from an Android phone. A
 backend running continuously on Oracle Cloud hosts the actual intelligence:
-model routing, agents, background bots, memory, and automation. The phone is
-a *client* — the system keeps working when the phone is closed or offline.
+model routing, agents, background bots, memory, and automation. The Android
+app is a **thin control client** — it renders state and sends intent, and
+it does not itself execute anything while closed. What "keeps working
+while the app is closed" is specifically the **backend**: it stays up and
+can run approved background agents, bots, schedulers, and automations that
+don't require a provider key the app hasn't supplied (see §2 principle 4
+and `07-security-model.md` §3). Results produced while the app was closed
+are delivered as a push notification and become visible the next time the
+owner opens the app — the phone is not a second execution environment.
 
 It is explicitly **not**:
 - a SaaS product
@@ -20,9 +27,12 @@ extensibility** — not for scale-out or multi-user isolation.
 
 ## 2. Guiding principles
 
-1. **Backend is the source of truth.** The phone renders state and sends
-   intent; it does not hold authoritative data. This is what lets bots/agents
-   keep running while the app is closed.
+1. **Backend is the source of truth, and the only thing that runs when the
+   app is closed.** The phone renders state and sends intent; it does not
+   hold authoritative data and executes nothing in the background. The
+   backend process itself keeps running independent of the phone, and can
+   execute approved bots/schedulers/automations that don't need a
+   provider key the app hasn't supplied — see principle 4.
 2. **Everything is an interface first.** Providers, agents, tools, and bots
    are implementations of small, stable interfaces registered into
    registries. New ones are added by registering, never by editing core
@@ -33,8 +43,11 @@ extensibility** — not for scale-out or multi-user isolation.
    Pipeline: **Bot detects → Agent analyzes → Reviewer validates → Master
    reports/acts.**
 4. **User owns the keys, the system never owns them.** Provider API keys are
-   entered by the user, encrypted at rest, never hard-coded, never logged,
-   never required as build-time secrets.
+   entered by the user and live in the Android app's Keystore-backed local
+   vault, not on the backend. They are never hard-coded, never persisted
+   server-side by default, never logged, and never required as build-time
+   secrets. The backend only ever holds a key transiently, in memory, for
+   the single request that needed it. See `07-security-model.md` §3.
 5. **Self-improvement is bounded.** The system can update its own knowledge,
    model registry, and routing policy autonomously. It cannot modify its own
    application code, infrastructure, or permissions without an explicit

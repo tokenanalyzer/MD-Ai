@@ -24,6 +24,25 @@ see §6.
 | OS + Docker overhead | ~1 GB | |
 | **Headroom** | **~5 GB** | Reserved — no service is sized to consume it by default; available for the n8n container (M10, optional) or traffic spikes |
 
+### 2.1 M1 conservative start
+
+M1 runs the smallest slice that proves the real chat path end-to-end, and
+nothing beyond it:
+
+- **Running**: `backend` (API + WS gateway), `postgres`, `redis`, one
+  BullMQ worker process **inside the backend process** (not a separate
+  container yet — see §3) handling exactly one job type: the events
+  retention sweep (`docs/architecture/02-database-schema.md` §4).
+- **Explicitly not started in M1**: the Bot Engine's bot fleet (no bots are
+  registered/scheduled yet — see `09-roadmap.md` M5/M8), the Evolution
+  Engine, and any autonomous background agent work. There is nothing for a
+  bot to run yet and no server-side key for one to use even if there were
+  (`07-security-model.md` §3.4), so this isn't a deferred feature so much
+  as a non-goal for this milestone specifically.
+- **Worker count**: 1 (the in-process BullMQ worker). This is itself a
+  telemetry value (§9.1) so growth is visible as later milestones add
+  bots.
+
 ## 3. Container topology
 
 ```
@@ -114,11 +133,12 @@ GitHub Actions pipeline (`.github/workflows/`, added in Phase 7):
 - `pg_dump` scheduled (daily) to Oracle Cloud Object Storage (Always Free
   tier includes 10GB), retained on a short rolling window (e.g. 7 daily +
   4 weekly) given free-tier storage limits.
-- Provider key ciphertext is included in DB backups (it's useless without
-  the KEK, which is **not** backed up alongside the DB — see
-  `07-security-model.md` §3); the KEK's own backup/recovery procedure is
-  documented separately once the KEK source (Oracle Vault vs. sealed env
-  secret) is finalized in Phase 7.
+- Nothing secret is in these backups by default: `provider_configs`
+  contains only status metadata (see `07-security-model.md` §3), so a DB
+  dump carries no provider key material to protect or lose. If the future
+  opt-in server secret mechanism (`07-security-model.md` §3.4) is ever
+  built, its encryption-key backup/recovery procedure will be documented
+  separately at that time — it does not exist yet.
 
 ## 9. Observability posture for this scale
 
@@ -129,3 +149,24 @@ which already double as a queryable timeline. A Prometheus + Grafana stack
 is an explicit *optional* addition for later, not a dependency of the core
 architecture — it would consume RAM headroom this budget currently reserves
 for the Evolution Engine sandbox and traffic spikes.
+
+### 9.1 M1 resource telemetry (mandatory, minimal)
+
+`GET /health` (`03-api-contracts.md` §9) reports, refreshed on a short
+in-process interval (default 10s) rather than computed per-request so the
+health check itself stays cheap:
+
+| Metric | Source | Why it matters at this scale |
+|---|---|---|
+| CPU (process + system) | `process.cpuUsage()` + `os.loadavg()` | First signal the 2-OCPU ceiling is close |
+| Memory (process RSS + system free) | `process.memoryUsage()` + `os.freemem()`/`totalmem()` | First signal the 12GB ceiling is close |
+| PostgreSQL | pool size, active/idle connections, and a cheap `SELECT 1` latency probe | Connection exhaustion and query slowness show up here before they show up as user-visible errors |
+| Redis | `INFO` — `used_memory`, `connected_clients`; `PING` latency | Redis is small by design (§2) — growth here is a signal something is misusing it as a general cache |
+| Queue depth | BullMQ `getJobCounts()` for each registered queue | Should be ~0 in M1 outside brief retention-sweep runs; a growing backlog means the worker isn't keeping up |
+| Worker count | BullMQ `getWorkers()` / process-local registry | Expected to be 1 in M1 (§2.1) — this is the number that should grow deliberately at M5/M8, not silently |
+| Request latency | Rolling p50/p95 per route, computed in the request-logging middleware (in-memory ring buffer, no external APM) | Cheapest possible signal that a provider or the DB has gotten slow |
+
+This is exposed as one aggregate JSON document, not a metrics-scrape
+endpoint (no Prometheus exporter in M1 — see the framing above). It is
+enough to answer "is this 12GB box under pressure" without adding a
+service to the topology.

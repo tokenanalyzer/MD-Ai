@@ -21,8 +21,9 @@ exposure).
    exposure mode (skip if using Cloudflare Tunnel).
 2. Install Docker Engine + Compose plugin (arm64 packages).
 3. Clone this repo, copy `.env.example` → `services/backend/.env`, fill in
-   `MDAI_KEK` / `MDAI_JWT_SECRET` (generate locally, never reuse dev
-   values).
+   `MDAI_JWT_SECRET` (generate locally, never reuse dev values). No
+   provider key belongs in this file — see
+   `docs/architecture/07-security-model.md` §3.
 4. `docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml up -d`
 5. Run migrations (`services/backend/src/db/migrations`) against the
    `postgres` service.
@@ -33,5 +34,6 @@ exposure).
 ## Backups
 
 Daily `pg_dump` to an Oracle Cloud Object Storage bucket (Always Free
-tier: 10GB). Retention and KEK-separation are documented in
-`docs/architecture/08-deployment-architecture.md` §8.
+tier: 10GB). Retention is documented in
+`docs/architecture/08-deployment-architecture.md` §8. No provider secrets
+are in scope for these backups — the backend doesn't hold any.

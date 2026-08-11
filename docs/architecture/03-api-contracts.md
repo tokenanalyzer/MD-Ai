@@ -32,9 +32,19 @@ Common envelope:
 | `GET` | `/conversations` | → `Conversation[]` (paginated) |
 | `POST` | `/conversations` | `{ title? }` → `Conversation` |
 | `GET` | `/conversations/:id/tasks` | → `Task[]` with nested `task_messages` |
-| `POST` | `/conversations/:id/messages` | `{ parts: Part[] }` → `Task` (creates a `master` task; state starts `submitted`). Text, image, file, and PDF parts all go through this one endpoint — see §6. |
+| `POST` | `/conversations/:id/messages` | `{ parts: Part[], providerKeys, preferredProviderId?, preferredModelId? }` → `Task` (creates a `master` task; state starts `submitted`). Text, image, file, and PDF parts all go through this one endpoint — see §6. |
 | `POST` | `/tasks/:id/cancel` | `{ reason? }` → `204` |
 | `WS` | `/ws/tasks/:id` | Server→client `TaskStreamChunk` frames (see below) |
+
+`providerKeys` is `{ [providerId: string]: string }` — the app includes a
+key **only** for providers it currently has unlocked in its local vault
+and is willing to let this request use. The Model Router (§`06-provider-model-interfaces.md`)
+picks `preferredProviderId`'s key first and falls back to any other key
+present in the map, in ranked order, on failure. None of these keys are
+ever written to a database row; they exist only in the request handler's
+memory for the lifetime of the call (typically a few seconds for a
+streamed response) — see `07-security-model.md` §3 for the exact
+guarantee and how it's tested.
 
 Chat streaming happens over the same WebSocket gateway used for Command
 Center events (§5), scoped to `taskId` — one connection serves both a chat
@@ -43,16 +53,27 @@ never duplicates a chat's model calls.
 
 ## 3. Provider / API Key Vault
 
+**The key vault is on the device, not the backend.** Provider API keys are
+written and read entirely inside the Android app's Keystore-backed local
+storage. The backend never has a "store this key" endpoint at all — see
+`07-security-model.md` §3. The endpoints below only ever see a key
+**transiently, in a request body, for the duration of that one call**, and
+persist only non-secret status metadata as a side effect.
+
 | Method | Path | Body → Response |
 |---|---|---|
-| `GET` | `/providers` | → `Provider[]` (built-in + user-added) |
-| `GET` | `/providers/:id/credentials` | → `ProviderCredential[]` — **`key` is never included**, only `keyLast4`, `status`, `isDefault` |
-| `POST` | `/providers/:id/credentials` | `{ label?, apiKey, setAsDefault? }` → `ProviderCredential` (key encrypted server-side immediately; response omits it) |
-| `PUT` | `/providers/:id/credentials/:credId` | `{ apiKey?, label?, isDefault? }` → `ProviderCredential`. Sending a new `apiKey` fully replaces the stored ciphertext. |
-| `DELETE` | `/providers/:id/credentials/:credId` | → `204` |
-| `POST` | `/providers/:id/credentials/:credId/test` | → `ConnectionTestResult` (also updates `status`/`last_test_*`) |
+| `GET` | `/providers` | → `Provider[]` (built-in + user-added catalog, no per-user state) |
+| `GET` | `/providers/:id/configs` | → `ProviderConfig[]` — status metadata only: `keyLast4`, `status`, `isDefault`, `label`, `lastTestAt`. **No `apiKey` field exists on this type.** |
+| `POST` | `/providers/:id/test-connection` | `{ apiKey, label? }` → `ConnectionTestResult`. The backend calls the provider's adapter with this key **in memory only**, returns the result, and upserts the matching `provider_configs` row's `status`/`last_test_at`/`last_test_error`/`key_last4` (the last-4 fragment is computed from the key `POST`ed for this one call, then the key itself is discarded — never written anywhere). |
+| `PATCH` | `/providers/:id/configs/:configId` | `{ label?, isDefault? }` → `ProviderConfig`. Metadata-only edit — there is no way to set/replace a key through this route. |
+| `DELETE` | `/providers/:id/configs/:configId` | → `204`. Clears the backend's status metadata for that provider config. Does **not** touch the device's local vault — the app deletes the actual key from `expo-secure-store` itself and calls this separately so other devices stop seeing it as configured. |
 | `GET` | `/models` | `?providerId=&enabledOnly=` → `ModelRegistryEntry[]` |
 | `PATCH` | `/models/:id` | `{ userEnabled?, userPriority? }` → `ModelRegistryEntry` (user-facing model config only; capability/health fields are read-only here) |
+
+Chat requests (§2) that need a provider call attach the key(s) inline —
+see the `providerKeys` field on the WS message contract below — rather
+than the backend looking anything up by credential id, because the backend
+holds no credential to look up.
 
 ## 4. Agents & bots
 

@@ -2,9 +2,9 @@
 # See docs/architecture/08-deployment-architecture.md for the resource
 # budget and networking modes this file implements.
 #
-# `backend` build context is added in Phase 7 once services/backend has a
-# Dockerfile; until then `docker compose up postgres redis` is enough to
-# develop the backend locally against a real DB.
+# Run from the repo root: `docker compose -f infra/docker/docker-compose.yml up`
+# (the backend build context is the repo root, since it needs
+# pnpm-workspace.yaml and packages/shared-types alongside services/backend).
 
 services:
   postgres:
@@ -33,20 +33,23 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 
-  # backend:
-  #   build:
-  #     context: ../../services/backend
-  #     dockerfile: ../../infra/docker/backend.Dockerfile
-  #     platforms: ["linux/arm64"]
-  #   restart: unless-stopped
-  #   env_file: ../../services/backend/.env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #   ports:
-  #     - "127.0.0.1:8080:8080"
+  backend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+      platforms: ["linux/arm64"]
+    restart: unless-stopped
+    env_file: ../../services/backend/.env
+    environment:
+      DATABASE_URL: postgres://mdai:mdai@postgres:5432/mdai
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8080:8080"
 
 volumes:
   postgres-data:

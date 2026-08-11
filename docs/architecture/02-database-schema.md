@@ -12,7 +12,7 @@ an edit to an already-applied one.
 |---|---|---|
 | `0001_extensions.sql` | — | `pgcrypto`, `vector`, `pg_trgm` |
 | `0002_core_config.sql` | `owner`, `device_sessions`, `app_config` | single-user identity, device auth, settings |
-| `0003_provider_vault.sql` | `providers`, `provider_credentials`, `provider_default_models` | AI Provider / API Key Vault |
+| `0003_provider_vault.sql` | `providers`, `provider_configs`, `provider_default_models` | Provider catalog + connection **metadata only** (no secrets — see §3) |
 | `0004_model_registry.sql` | `model_registry`, `model_call_samples` | Model Registry + rolling health samples |
 | `0005_agents.sql` | `agents`, `agent_delegation_edges` | Agent Registry (A2A agent cards) |
 | `0006_a2a_tasks.sql` | `conversations`, `tasks`, `task_messages` | A2A task lifecycle + chat |
@@ -22,13 +22,16 @@ an edit to an already-applied one.
 | `0010_mcp_tools.sql` | `tools`, `agent_tool_grants`, `tool_invocations` | MCP tool registry |
 | `0011_automations.sql` | `automations`, `automation_runs` | Scheduled/event-triggered automations, n8n hook |
 | `0012_evolution_audit.sql` | `evolution_proposals`, `audit_log` | Bounded self-improvement + security audit trail |
+| `0013_seed_providers.sql` | — | Seeds the built-in `providers` catalog (matches `core/providers/registry.ts`) |
+| `0014_seed_agents.sql` | — | Seeds the `master` agent row (the only agent implemented in M1) |
+| `0015_seed_default_models.sql` | — | Seeds one `model_registry` row per provider's M1 default model (matches `core/providers/registry.ts`'s `PROVIDER_DEFAULT_MODELS`) so `tasks.model_id`'s foreign key always has a valid target |
 
 ## 2. Relationship overview
 
 ```
 owner 1─* device_sessions
 
-providers 1─* provider_credentials 1─1 provider_default_models ──▶ model_registry
+providers 1─* provider_configs 1─1 provider_default_models ──▶ model_registry
 providers 1─* model_registry 1─* model_call_samples
 
 agents 1─* agent_delegation_edges (self-referencing graph, data not code)
@@ -90,10 +93,14 @@ insert, which is the intended guardrail.
 validation as a child task; `events` rows tie the whole chain to a visible
 timeline for the Command Center.
 
-**Provider keys never appear in plaintext in this schema.** See
-`provider_credentials` (ciphertext/nonce/auth_tag/wrapped-DEK columns) and
-`07-security-model.md` for the encryption scheme. `key_last4` is the only
-human-readable fragment ever stored.
+**Provider keys never appear in this schema at all — not even encrypted.**
+`provider_configs` deliberately has no ciphertext column. The key lives in
+the Android app's Keystore-backed local vault and is sent to the backend
+transiently, per request, for in-memory use only; it is never written to
+any table. `key_last4` is a display-only fragment reported by the client
+after a successful local test, not derived from anything the server holds.
+See `07-security-model.md` §3 for the full rationale and the boundary of a
+possible future, explicitly opt-in server-side secret mechanism.
 
 ## 4. Retention
 

@@ -12,8 +12,9 @@ realistic threats are therefore: **unauthorized access to the backend**
 |---|---|
 | Backend endpoint discovered/scanned by internet | No public unauthenticated routes except `/auth/pair` (single-use code) and signed automation webhooks; prefer not exposing a public IP at all (see `08-deployment-architecture.md` — Cloudflare Tunnel / WireGuard) |
 | Stolen/lost phone | Device sessions are individually revocable (`/auth/revoke`); local app unlock gated by Keystore-backed biometric/PIN before the session token is even usable |
-| Provider key theft via DB dump | Keys are envelope-encrypted, never stored plaintext; DB dump alone is insufficient without the KEK (which is not co-located with the DB backup) |
-| Provider key theft via logs/crash reports | Structural redaction — see §3 |
+| Provider key theft via DB dump | Structurally impossible by default — the backend never writes a provider key to any table (see §3). A DB dump contains, at most, connection metadata and a last-4 display fragment. |
+| Provider key theft via logs/crash reports | Structural redaction — see §4 |
+| Provider key theft in transit (device ↔ backend) | TLS-only backend (see `08-deployment-architecture.md`); keys travel only inside authenticated, TLS-protected requests, never as URL query params |
 | A tool or automation taking an irreversible action | `tools.requires_approval` + `evolution_proposals` approval gate — see §5 |
 | Self-modification going rogue | Five change classes, two of which can never auto-apply — see §5 |
 
@@ -39,48 +40,96 @@ realistic threats are therefore: **unauthorized access to the backend**
 
 ## 3. Provider API key vault
 
-**Storage**: envelope encryption, AES-256-GCM.
-- A random 256-bit **Data Encryption Key (DEK)** is generated per credential.
-- The provider key is encrypted with the DEK → `key_ciphertext` / `key_nonce`
-  / `key_auth_tag`.
-- The DEK itself is encrypted ("wrapped") with a **Key Encryption Key
-  (KEK)** → `dek_wrapped`. The KEK lives outside the database: as an Oracle
-  Cloud Vault secret if available, or as a container-runtime secret injected
-  via environment at process start (never committed, never baked into the
-  Docker image — see `08-deployment-architecture.md`). `kek_version` supports
-  rotating the KEK without re-encrypting every DEK in one blocking operation.
-- **Decryption happens only at call time**, inside the provider-adapter call
-  path, and the decrypted key is held only for the duration of that one
-  outbound request — never cached, never written to a log field, never
-  included in an event payload.
+**The backend is not the vault. The Android app is.** This is a product
+requirement, not just an implementation choice: the owner enters and
+controls their own provider keys from the phone, and the backend must not
+be the authoritative holder of that secret by default.
 
-**Why not rely on Android Keystore for the authoritative copy**: see
-`01-repository-structure.md` §3 — bots/agents must keep running while the
-phone is off, which requires the backend to hold a usable copy
-independently of the device.
+### 3.1 Where keys actually live
 
-**API surface guarantees** (`03-api-contracts.md` §3):
-- `GET` credential endpoints return `keyLast4` only, never the key.
-- `POST`/`PUT` accept a key, encrypt it immediately, and the response still
-  omits it — the client already has what it typed, echoing it back serves
-  no purpose and only adds exposure.
-- `test connection` reuses the stored encrypted key server-side; the app
-  never needs to resend a key to test it.
+- **On-device storage**: `expo-secure-store`, which on Android is backed by
+  the **Android Keystore** — the key material is protected by the device's
+  hardware-backed keystore, not just app-sandboxed storage. This is the one
+  and only persistent store for provider keys in the default architecture.
+- **Backend storage**: none. `provider_configs` (see `02-database-schema.md`
+  §1) has no ciphertext column, no DEK, no KEK — there is nothing there to
+  decrypt because there is nothing there.
+
+### 3.2 How the backend uses a key without storing it
+
+1. The app reads the key from `expo-secure-store` at the moment it's
+   needed (sending a chat message, testing a connection).
+2. It's attached to that one HTTPS/WebSocket request — `providerKeys` on
+   the chat message contract, `apiKey` on the test-connection call (see
+   `03-api-contracts.md` §2–3).
+3. The backend's request handler passes it straight into the relevant
+   `ModelProvider` adapter call and lets the reference go out of scope the
+   moment that call (or stream) completes. It is never assigned to a
+   variable outside that request's handling function, never put in a
+   session object, never put in a cache, never written to Postgres or
+   Redis.
+4. The only durable trace left behind is non-secret metadata: connection
+   `status`, `last_test_at`/`last_test_error`, and a `key_last4` fragment
+   computed from the transient value purely for display (e.g. "NVIDIA
+   ...a91f") — none of which allow reconstructing the key.
+
+This is enforced structurally, not just by convention: the `ModelProvider`
+interface (`06-provider-model-interfaces.md` §1) takes `apiKey` as a plain
+call argument, not as adapter construction state, so there is no object in
+the process that could accumulate keys across requests even if someone
+tried.
+
+### 3.3 API surface guarantees (`03-api-contracts.md` §3)
+
+- There is no endpoint that stores a key server-side — by design, not by
+  omission. `POST /providers/:id/test-connection` accepts a key and uses
+  it once; there is no corresponding "save" endpoint.
+- `GET .../configs` responses have no `apiKey` field in their type at all
+  (not "omitted", the field doesn't exist on `ProviderConfig`).
+- `key_last4` is computed from whatever was `POST`ed to
+  `test-connection` in that call, then discarded along with the rest of
+  the key.
+
+### 3.4 Future: an explicitly opt-in server secret mechanism (not built yet)
+
+Some future capability may genuinely need the backend to call a provider
+with no device present — e.g. a bot that must run at 3am. When that need
+is real, it will be built as a **separate mechanism**, deliberately not
+routed through this vault design:
+
+- A distinct table (not `provider_configs`) that the owner opts into
+  per-provider, with its own explicit UI flow ("allow the backend to hold
+  a copy of this key for background use") — not a silent default.
+- Envelope encryption (DEK/KEK, as originally scoped for this milestone)
+  is the right storage design *for that table specifically*, since it
+  would be a genuine server-side secret at that point.
+- Until that mechanism exists, any bot/automation that needs an LLM call
+  simply cannot run unattended — see `01-repository-structure.md` §3 and
+  `00-overview.md` §2 principle 1 for the resulting scope boundary on
+  background execution.
 
 ## 4. No secrets in logs or crash reports
 
-- A **redaction middleware** wraps every log call and every outbound error
-  payload; it pattern-matches common key shapes (`sk-...`, `Bearer ...`,
-  long hex/base64 tokens) as a defense-in-depth backstop, in addition to
-  the structural rule that decrypted keys never enter a variable that's
-  in scope where logging happens (enforced by code review / lint rule
-  banning `console.log`/logger calls inside `core/providers/*/index.ts`
-  request-building functions without an explicit redaction wrapper).
+- The structured logger is configured with an explicit **redaction path
+  list** (`req.body.providerKeys`, `req.body.apiKey`,
+  `req.headers.authorization`, and any nested `parts[].data.apiKey`-shaped
+  field) so request/response logging middleware can never emit them,
+  regardless of log level — this is a config-level guarantee (the logger
+  library redacts before serialization), not a per-call discipline that
+  can be forgotten.
+- A **pattern-matching backstop** additionally scrubs common key shapes
+  (`sk-...`, `Bearer ...`, long hex/base64 tokens) from any log line and
+  outbound error payload that didn't go through the structured logger, as
+  defense-in-depth.
 - Crash reporting (if/when added) is configured to scrub request bodies for
-  any route under `/providers/*/credentials`.
+  `/providers/*/test-connection` and `/conversations/*/messages`.
 - `audit_log.metadata` is documented as **never** containing secret
-  material — audit entries record *that* a key was added/rotated/tested,
-  not the key.
+  material — audit entries record *that* a connection was tested or a
+  chat request was routed to a given provider, not any key.
+- This guarantee is covered by an automated test (see M1 test suite,
+  `docs/architecture/09-roadmap.md`) that sends a request containing a
+  known fake key and asserts the key substring never appears in captured
+  log output.
 
 ## 5. Bounded self-modification (Evolution Engine)
 
@@ -125,8 +174,10 @@ forwarding every tool call for manual review.
 Retries, circuit breakers, and provider fallback (see
 `08-deployment-architecture.md` §4) operate entirely within already-granted
 scope — a circuit breaker can stop calling a failing provider and fall back
-to another *configured* one, but nothing in the self-healing path can grant
-itself a new capability, credential, or tool grant. Recovery actions are
+to another provider **whose key was already present in that same request's
+`providerKeys`**, but nothing in the self-healing path can grant itself a
+new capability, credential, or tool grant, and it can never reach for a key
+the request didn't supply. Recovery actions are
 themselves `system`-sourced events on the event bus, so they're visible in
 the Command Center and `audit_log`, not silent.
 

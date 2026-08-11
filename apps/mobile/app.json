@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "MD AI",
+    "slug": "md-ai",
+    "scheme": "mdai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0d0c",
+    "platforms": ["android"],
+    "android": {
+      "package": "ai.mdai.app",
+      "backgroundColor": "#0a0d0c"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "extra": {
+      "mdaiBackendUrl": "http://10.0.2.2:8080"
+    }
+  }
+}

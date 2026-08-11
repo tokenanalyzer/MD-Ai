@@ -112,6 +112,16 @@ export interface RoutingCriteria {
   /** Explicit user override; router still validates the model is enabled/available. */
   preferredModelId?: string;
   maxLatencyMs?: number;
+  /**
+   * Provider ids the caller actually supplied a key for on this request
+   * (see ChatRequestEnvelope.providerKeys in the API layer). The router
+   * never stores or looks up a credential — it can only route to a
+   * provider present in this list. Required because, per the M1 API-key
+   * architecture change, the backend holds no persistent credential of
+   * its own to fall back on.
+   */
+  availableProviderIds: string[];
+  preferredProviderId?: string;
 }
 
 export interface RoutingDecision {
@@ -124,9 +134,10 @@ export interface RoutingDecision {
 
 /**
  * Selects a model given task requirements, current provider/model health,
- * and which provider credentials the user has actually configured. Never
- * picks a model whose provider has no `provider_credentials` row with
- * `status = 'connected'`.
+ * and `criteria.availableProviderIds` — the providers the caller actually
+ * handed a key to for this request. Never picks a model whose provider id
+ * isn't in that list; the router has no credential store of its own to
+ * fall back on (see docs/architecture/07-security-model.md §3).
  */
 export interface ModelRouter {
   selectModel(criteria: RoutingCriteria): Promise<RoutingDecision>;

@@ -22,10 +22,23 @@ always-on backend.
 
 ## Status
 
-**M0 — Foundation architecture.** Repository structure, database
-migrations, and shared type contracts are in place. No application code has
-been implemented yet — that begins at M1 once this architecture is
-approved. See `09-roadmap.md`.
+**M0 (foundation architecture) and M1 (first working chat path) are
+delivered.** Backend: real Postgres/Redis-backed API + WS server, device
+pairing/auth, on-device provider key vault contract, all five provider
+adapters, Model Router with retry/circuit-breaker/fallback, Master Agent,
+event bus, resource telemetry — 42 automated tests passing (unit +
+integration, real DB, mocked provider HTTP). Mobile: pairing, Provider
+Vault, and chat screens implemented against the same contracts, not yet
+run on-device (no Android tooling in the environment this was built in).
+See `09-roadmap.md` for exact scope and the next milestone (M2).
+
+Quickstart (backend):
+```sh
+pnpm install
+cd services/backend && cp ../../.env.example .env  # fill in MDAI_JWT_SECRET
+pnpm run db:migrate   # or let `pnpm dev`/`node dist/index.js` auto-migrate on boot
+pnpm run dev
+```
 
 ## Workspace layout
 

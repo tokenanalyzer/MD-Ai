@@ -141,27 +141,47 @@ md-ai/
 | Provider abstraction | Custom `ModelProvider` interface (see `06-provider-model-interfaces.md`) | Vendor-neutral; NVIDIA Nemotron, Gemini, Groq, SambaNova, OpenRouter are adapters, not the core |
 | Agent protocol | A2A-shaped concepts (Agent Card, Task lifecycle, Message/Part) implemented in-process initially, transport-agnostic so agents can move to real HTTP A2A later | Keeps compatibility with the open A2A ecosystem without paying network overhead for agents that live in the same process today |
 | Tool protocol | MCP-shaped tool contracts (JSON-schema input/output), with a host that can also proxy to real external MCP servers | Tools stay swappable and agent-agnostic; opens the door to third-party MCP servers (n8n, browser tools, etc.) |
-| Encryption | AES-256-GCM envelope encryption for provider keys at rest; KEK from Oracle Cloud Vault (or sealed env secret) | See `07-security-model.md` |
+| Provider key storage | Android Keystore via `expo-secure-store`, on-device only; backend never persists a key | See `07-security-model.md` §3 |
 | Observability | Structured JSON logs + `/health` per subsystem + `events` table doubling as an audit/timeline source | Right-sized for a 2 OCPU/12GB box; Prometheus/Grafana is an optional later addition, not required for M1 |
 | CI | GitHub Actions: typecheck, lint, unit tests, provider-adapter contract tests, `arm64` image build | Keeps the ARM64 constraint enforced continuously instead of discovered at deploy time |
 
-## 3. Why provider keys cannot live only in Android Keystore
+## 3. Provider keys live on the device, not on the backend
 
-The product requirement is that **bots and agents keep running when the
-phone is closed**. If a provider API key only existed inside the phone's
-Keystore, the backend would be unable to make LLM calls while the app is
-off — which breaks background monitoring, autonomous agents, and
-notifications. Therefore:
+The owner enters and controls their own provider API keys from the Android
+app. The **authoritative** copy of each key lives in the phone's
+Keystore-backed local vault (`expo-secure-store`). The backend is **not**
+the source of truth for provider secrets:
 
-- The **authoritative** copy of each provider key is stored **server-side**,
-  encrypted at rest (see `07-security-model.md`).
-- Android Keystore is used for what it's actually good at on this
-  architecture: protecting the **device's own session credential** and
-  gating local app unlock (PIN/biometric), not for holding secrets the
-  server itself needs to operate autonomously.
-- Keys are transmitted from the app to the backend once, over TLS, during
-  "Add key" / "Edit key", and are never round-tripped back to the client in
-  full afterward (see Vault API contract in `03-api-contracts.md`).
+- Keys are never persisted to Postgres, never logged, never echoed back in
+  full, and never required as a build-time/deploy-time secret.
+- When a request needs a provider call (chat, connection test), the app
+  attaches the relevant key(s) to that request over TLS; the backend holds
+  the key only in memory for the duration of that single call and discards
+  it immediately after — see `07-security-model.md` §3 for the exact
+  request shape and the guarantees around this.
+- The backend's `provider_configs` table stores **metadata only**
+  (connection status, last-tested time, a display-only last-4 fragment,
+  default model) — never the key itself (see `02-database-schema.md` §3).
+
+**Consequence for "the system keeps working while the phone is closed"
+(§2 principle 1):** autonomous background work (bots, scheduled
+automations) that needs to call a provider without the app present cannot
+do so under this default model — there is no key for it to use. This is a
+deliberate scope boundary, not an oversight:
+
+- M1–M8 background work (Bot Engine, Evolution Engine) is limited to what
+  doesn't require an LLM call, or is deferred until the app is next opened
+  to supply a key for that specific run.
+- If a genuine backend-only capability later needs autonomous provider
+  access (e.g. a bot that must call a model at 3am), it is built as a
+  **separate, explicitly opt-in server secret mechanism** the owner turns
+  on deliberately per-provider — not by silently reusing or duplicating the
+  mobile vault. See `07-security-model.md` §3.4.
+- What *does* keep running with the app closed either way: the backend
+  process itself, scheduled deterministic bots that need no LLM call,
+  health/telemetry, and delivering push notifications for anything queued
+  while the owner was away. See §5 below for the precise "app closed"
+  semantics.
 
 ## 4. Extensibility contract
 

@@ -4,12 +4,37 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/db/migrations','dist/db/migrations',{recursive:true})\"",
+    "start": "node dist/index.js",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "@mdai/shared-types": "workspace:*"
+    "@mdai/shared-types": "workspace:*",
+    "bullmq": "^5.34.2",
+    "express": "^5.1.0",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "@types/supertest": "^6.0.2",
+    "@types/ws": "^8.5.13",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.9.3",
+    "undici": "^7.2.0",
+    "vitest": "^2.1.8"
   }
 }

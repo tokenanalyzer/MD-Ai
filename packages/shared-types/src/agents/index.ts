@@ -1,4 +1,4 @@
-import type { AgentCard, Task, TaskMessage, TaskStreamChunk } from "../a2a";
+import type { AgentCard, Task, TaskMessage, TaskStreamChunk } from "../a2a/index.js";
 
 export type AgentStatus = "idle" | "active" | "error" | "disabled";
 
@@ -43,5 +43,5 @@ export interface AgentRegistry {
   getDelegationOptions(agentId: string): Promise<AgentCard[]>;
 }
 
-export * from "../a2a";
-export * from "../mcp";
+export * from "../a2a/index.js";
+export * from "../mcp/index.js";

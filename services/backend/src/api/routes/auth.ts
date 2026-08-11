@@ -1,0 +1,84 @@
+import { Router } from "express";
+import type pg from "pg";
+import { pairBodySchema, refreshBodySchema, revokeBodySchema } from "../schemas.js";
+import { AppError } from "../errors.js";
+import { authGuard } from "../middleware/authGuard.js";
+import { consumePairingCode } from "../../core/security/pairing.js";
+import { generateRefreshToken, hashRefreshToken, signAccessToken } from "../../core/security/jwt.js";
+import { getOwner } from "../../db/repositories/ownerRepo.js";
+import {
+  createDeviceSession,
+  findActiveSessionByRefreshHash,
+  listActiveSessions,
+  revokeSession,
+} from "../../db/repositories/deviceSessionRepo.js";
+
+export function authRouter(pool: pg.Pool): Router {
+  const router = Router();
+
+  router.post("/pair", async (req, res, next) => {
+    try {
+      const body = pairBodySchema.parse(req.body);
+      const result = await consumePairingCode(pool, body.pairingCode);
+      if (!result.ok) {
+        throw new AppError(401, `pairing_${result.reason}`, "Pairing code is invalid, expired, or already used");
+      }
+      const owner = await getOwner(pool);
+      if (!owner) throw new AppError(500, "no_owner", "No owner configured on this backend");
+
+      const refreshToken = generateRefreshToken();
+      const session = await createDeviceSession(pool, {
+        ownerId: owner.id,
+        deviceName: body.deviceName,
+        platform: body.platform,
+        refreshTokenHash: hashRefreshToken(refreshToken),
+        pushToken: body.pushToken,
+      });
+      const { token, expiresIn } = signAccessToken({ sub: session.id, ownerId: owner.id });
+      res.status(201).json({ data: { accessToken: token, refreshToken, expiresIn } });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/refresh", async (req, res, next) => {
+    try {
+      const body = refreshBodySchema.parse(req.body);
+      const session = await findActiveSessionByRefreshHash(pool, hashRefreshToken(body.refreshToken));
+      if (!session) throw AppError.unauthorized("Refresh token invalid or revoked");
+      const { token, expiresIn } = signAccessToken({ sub: session.id, ownerId: session.owner_id });
+      res.json({ data: { accessToken: token, expiresIn } });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/revoke", authGuard(pool), async (req, res, next) => {
+    try {
+      const body = revokeBodySchema.parse(req.body);
+      await revokeSession(pool, body.deviceSessionId);
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/sessions", authGuard(pool), async (req, res, next) => {
+    try {
+      const sessions = await listActiveSessions(pool, req.deviceSession!.ownerId);
+      res.json({
+        data: sessions.map((s) => ({
+          id: s.id,
+          deviceName: s.device_name,
+          platform: s.platform,
+          lastSeenAt: s.last_seen_at?.toISOString(),
+          createdAt: s.created_at.toISOString(),
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  return router;
+}
