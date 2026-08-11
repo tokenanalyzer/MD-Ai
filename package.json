@@ -1,0 +1,18 @@
+{
+  "name": "md-ai",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4",
+    "typescript": "~5.9.3"
+  }
+}

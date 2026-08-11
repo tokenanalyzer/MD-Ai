@@ -1,0 +1,6 @@
+packages:
+  - apps/*
+  - services/*
+  - packages/*
+
+minimumReleaseAge: 1440
