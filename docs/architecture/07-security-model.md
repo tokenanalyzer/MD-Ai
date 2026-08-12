@@ -176,6 +176,13 @@ against policy before either reaches the user, and can veto (mark
 what keeps the human approval queue meaningful (low-noise) rather than
 forwarding every tool call for manual review.
 
+**Not implemented yet — do not confuse with M3's Reviewer.** `reviewer`
+(§9 below) validates a specialist agent's *output quality* (completeness,
+contradictions, hallucination risk) before it reaches Master; it has no
+opinion on tool-approval or evolution-proposal *policy*, which is
+Guardian's job. The two are separate future/present agents with disjoint
+responsibilities, not the same agent under two names.
+
 ## 7. Self-healing without weakening security
 
 Retries, circuit breakers, and provider fallback (see
@@ -197,3 +204,55 @@ the Command Center and `audit_log`, not silent.
   human-readable summary, not full task content).
 - Backups (see `08-deployment-architecture.md`) stay within the user's own
   Oracle Cloud Object Storage bucket.
+
+## 9. M3: multi-agent security guarantees
+
+Delegating work to Research and having Reviewer validate it before Master
+answers introduces new places a mistake could leak a secret, let an agent
+overreach, or quietly rubber-stamp bad output. M3 closes each of these
+structurally, not by convention:
+
+- **No provider key anywhere in the delegation tree.** `providerKeys`
+  lives only in the request handler's closure (`api/routes/conversations.ts`
+  → `dispatchMasterAgentTask` → `buildRuntimeContext`), exactly as in §3.2
+  — delegating to Research/Reviewer doesn't add a second place a key could
+  be written, because child tasks never receive `providerKeys` in their
+  `input` at all; they reach the Model Router through the same
+  in-closure reference the root task uses. Verified end-to-end by
+  `services/backend/test/integration/m3Security.test.ts`, which runs a
+  full Master → Research → Reviewer chat and asserts a known fake key
+  never appears in `tasks`, `events`, `memory_items`, `task_messages`, or
+  captured log output.
+- **Delegation requires an explicit authorization row.** `delegate()`
+  (`core/agents/runtimeContext.ts`) checks
+  `agentRegistry.isDelegationAuthorized(fromAgentId, toAgentId)` — backed
+  by the `agent_delegation_edges` table (data, not code) — before
+  creating a child task, and throws `DelegationNotAuthorizedError`
+  otherwise. M3's seed data authorizes only `master → research` and
+  `master → reviewer`; Research and Reviewer have no outbound edges at
+  all, so neither can delegate to anything, including each other.
+- **Reviewer can never approve itself.** `reviewerAgent.ts` structurally
+  refuses any task whose `input.targetAgentId === "reviewer"` before
+  making a single model call — `finishFailure({ code:
+  "reviewer_cannot_review_self" })`. This is checked ahead of, not
+  instead of, the delegation-authorization check above (belt and
+  suspenders: even if a future bug ever authorized `reviewer → reviewer`,
+  this guard still refuses).
+- **`agent_progress` status text is always safe, never chain-of-thought.**
+  Every `TaskStreamChunk{ kind: "agent_progress" }` Master or a delegated
+  agent emits is a short, hardcoded-shape label (e.g. "Research Agent
+  working…", built from `AgentCard.displayName`) — never a fragment of a
+  model's raw output or reasoning trace. The Android chat UI renders this
+  `label` directly as-is with no additional parsing, which is only safe
+  because the backend guarantees its content, not because the client
+  sanitizes it.
+- **Memory content never crosses the event bus.** `memory.retrieved`
+  carries a `count` and a `memoryIds` array only; `memory.created` carries
+  `category`/`approvalStatus`, not `content`. A future Command Center can
+  render "3 memories retrieved" without the event bus itself becoming a
+  second place memory content is exposed beyond the authenticated
+  `/memory` REST routes.
+- **A system-proposed memory candidate cannot become retrievable without a
+  human decision.** §"Approval policy" in `04-agent-interfaces.md` §7 —
+  enforced at the query layer (`searchMemory`'s `WHERE approval_status =
+  'approved'`), not by trusting every write path to set the right flag.

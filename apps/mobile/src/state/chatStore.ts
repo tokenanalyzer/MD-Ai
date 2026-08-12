@@ -20,6 +20,8 @@ interface ChatState {
   connection: ConnectionState;
   lastError: string | null;
   activeTaskId: string | null;
+  /** M3.9: latest safe delegation status label (e.g. "Research Agent working…"), cleared once the task settles. */
+  progressLabel: string | null;
   preferredProviderId?: string;
   preferredModelId?: string;
   /** M2.5: AUTO defers to the deterministic scoring router; MANUAL always uses preferredProviderId/preferredModelId exactly. */
@@ -43,6 +45,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   connection: "idle",
   lastError: null,
   activeTaskId: null,
+  progressLabel: null,
   preferredProviderId: undefined,
   preferredModelId: undefined,
   routingMode: "auto",
@@ -79,6 +82,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...s.messages, userMsg, assistantMsg],
       connection: "working",
       lastError: null,
+      progressLabel: null,
     }));
 
     try {
@@ -95,27 +99,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       closeStream = await openTaskStream(task.id, {
         onDelta: (delta) => {
           set((s) => ({
+            progressLabel: null,
             messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, text: m.text + delta } : m)),
           }));
+        },
+        onProgress: (label) => {
+          set({ progressLabel: label });
         },
         onStatus: (state) => {
           if (state === "completed") {
             set((s) => ({
               connection: "idle",
               activeTaskId: null,
+              progressLabel: null,
               messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, streaming: false } : m)),
             }));
           } else if (state === "failed" || state === "canceled") {
             set((s) => ({
               connection: state === "failed" ? "error" : "idle",
               activeTaskId: null,
+              progressLabel: null,
               lastError: state === "failed" ? "The model didn't respond — check your provider keys and try again." : null,
               messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, streaming: false } : m)),
             }));
           }
         },
         onError: () => {
-          set({ connection: "error", lastError: "Lost connection to MD AI backend.", activeTaskId: null });
+          set({ connection: "error", lastError: "Lost connection to MD AI backend.", activeTaskId: null, progressLabel: null });
         },
         onClose: () => {
           closeStream = null;

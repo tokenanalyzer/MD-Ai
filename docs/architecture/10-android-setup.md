@@ -22,9 +22,11 @@ explicit instruction, this is documented rather than claimed as verified.
   workspace** (Expo/React Native/expo-router/zustand dependency tree
   installs and every screen/store/component in `apps/mobile` typechecks
   cleanly against React Native's real type definitions) — this was
-  re-verified in M2 after adding the M2.5 provider/model UI. It rules out
-  an entire class of "wouldn't even build" failures without needing a
-  device.
+  re-verified in M2 after adding the M2.5 provider/model UI, and again in
+  M3 after adding the `agent_progress` delegation-status wiring
+  (`chatSocket.ts`'s `onProgress` handler, `chatStore.ts`'s
+  `progressLabel` state, the chat screen's status line). It rules out an
+  entire class of "wouldn't even build" failures without needing a device.
 - Mobile-side pure logic (the secure vault wrapper — `setProviderKey`/
   `getProviderKey`/`deleteProviderKey`/`buildProviderKeysForRequest` — and
   backend-URL resolution) is covered by 11 passing Vitest unit tests using
@@ -56,6 +58,14 @@ explicit instruction, this is documented rather than claimed as verified.
    backend-side routing-mode logic is verified
    (`test/integration/routingModes.test.ts`), the UI wiring that calls it
    is not.
+9. (M3.9) The `agent_progress` delegation-status text (e.g. "Research
+   Agent working…") actually renders in place of the generic "Master
+   Agent is answering…" line while a delegated task is in flight — the
+   backend emits real `agent_progress` chunks during a live delegation
+   (verified end-to-end over a real WebSocket in
+   `test/integration/delegation.test.ts`) and the store/screen wiring
+   typechecks, but the on-screen rendering timing/behavior is not
+   confirmed on-device.
 
 ## 2. How to actually verify this (for the owner, on a real device)
 

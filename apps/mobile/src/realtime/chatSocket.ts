@@ -5,6 +5,8 @@ import { useSessionStore } from "../state/sessionStore";
 export interface TaskStreamHandlers {
   onDelta: (text: string) => void;
   onStatus: (state: NonNullable<TaskStreamChunk["state"]>) => void;
+  /** M3.9: safe, human-readable delegation status only (e.g. "Research Agent working…") — never chain-of-thought or raw model reasoning. */
+  onProgress?: (label: string) => void;
   onError: (error: Error) => void;
   onClose: () => void;
 }
@@ -26,6 +28,7 @@ export async function openTaskStream(taskId: string, handlers: TaskStreamHandler
       const chunk = JSON.parse(event.data as string) as TaskStreamChunk;
       if (chunk.kind === "token" && chunk.delta) handlers.onDelta(chunk.delta);
       if (chunk.kind === "status" && chunk.state) handlers.onStatus(chunk.state);
+      if (chunk.kind === "agent_progress" && chunk.label) handlers.onProgress?.(chunk.label);
     } catch (err) {
       handlers.onError(err instanceof Error ? err : new Error("Failed to parse stream frame"));
     }

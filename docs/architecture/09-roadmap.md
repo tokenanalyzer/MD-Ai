@@ -75,13 +75,50 @@ those changes are folded into the doc set as of M1.
   exact verified/unverified split and the M2 completion report for full
   detail.
 
-## M3 — Agent Registry + A2A task layer + memory
-- `core/a2a` task state machine, delegation, `agent_delegation_edges`.
-- Agents: `research`, `reviewer`, `memory-agent` (first three beyond
-  Master — enough to prove real delegation + review + memory write).
-- Memory Engine: structured storage, embedding + semantic search, chat
-  memory commands ("Remember this." / "Forget this.").
-- Mobile: memory browser screen, agent list screen (status only, no 3D yet).
+## M3 — Agent Registry + A2A task layer + memory — **delivered**
+- Agent Registry promoted to a real DB-backed subsystem
+  (`core/agents/agentRegistryService.ts`): typed `AgentCard`s, capability-
+  based discovery (`findByCapability`), delegation authorization backed by
+  `agent_delegation_edges` (data, not code), heartbeat/status columns.
+- Three agents — **Master, Research, Reviewer** (not the full future
+  ecosystem, and not a `memory-agent`: Master itself owns the single
+  memory-write path in M3, see `04-agent-interfaces.md` §7). Master is a
+  real orchestrator: capability-based intent classification (dynamic
+  capability list, never hardcoded), delegation with a bounded
+  one-revision Reviewer loop (`APPROVE`/`REVISE`/`REJECT`), and streamed
+  synthesis honoring the user's actual routing preference while every
+  internal call stays AUTO. Research is honest about having no live tool
+  access yet (`ToolNotAvailableError`, disclosed in `limitations`, never a
+  fabricated source). Reviewer structurally refuses to ever review another
+  Reviewer task (`reviewer_cannot_review_self`) before making a single
+  model call.
+- A2A task layer extended: `correlation_id` (root-scoped, propagated to
+  every descendant) + `attempt`, `cancelTaskCascade` for whole-tree
+  cancellation, a safety net that fails a child task that returns without
+  finalizing rather than leaving it stuck `working`.
+- Memory Engine (`core/memory/memoryEngine.ts`): real lexical/trigram
+  retrieval (`pg_trgm`, not a placeholder — cross-vendor embeddings are a
+  documented near-term addition, not faked), an `approval_status` column
+  gating retrieval (`approved`/`pending`/`rejected`), explicit "Remember
+  this."/"Forget this." commands, and conservative system-proposed
+  candidates that are never auto-approved. Context retrieval (top-5
+  relevant memories) runs before every Master response, surfaced on the
+  event bus as `memory.retrieved` (count + ids only, never content).
+- 10 new/extended event types (`task.*`, `message.*`, `review.*`,
+  `memory.*`, `agent.completed`) as the future Command Center's source of
+  truth, plus mobile chat UI showing safe delegation status text
+  (`agent_progress` chunks, e.g. "Research Agent working…") — never
+  chain-of-thought.
+- 106 automated backend tests total (83 carried over from M1/M2, zero
+  regressions, + 23 new M3-specific scenarios covering delegation, the
+  bounded revision loop, the Reviewer self-review guard, memory commands/
+  candidates/retrieval, agent-registry discovery/authorization, cascade
+  cancellation, and a dedicated no-secret-leak test across the whole
+  delegation tree). Local (non-Oracle) performance measurement in
+  `08-deployment-architecture.md` §9.2. **Not exercised**: the mobile
+  delegation-status UI on a real Android device/emulator, same documented
+  limitation as M1/M2 — see the M3 completion report for the exact
+  verified/unverified split.
 
 ## M4 — MCP tool layer
 - `core/mcp` host, `agent_tool_grants`, approval gate wiring.

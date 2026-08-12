@@ -209,6 +209,23 @@ until there's enough real telemetry to tune against responsibly, and even
 then stays inside the bounded `routing_policy_update` change class
 (`07-security-model.md` §5) — never something the model itself rewrites.
 
+### 4.4 M3: internal agent calls always stay plain AUTO
+
+M3 gave every task's `AgentRuntimeContext.completeChat()` its own routing
+call (`core/router/completeChat.ts`), used by intent classification and
+by the Research/Reviewer agents. All of these deliberately run with
+`routingMode` omitted (defaulting to AUTO scoring, no `preferredProviderId`/
+`preferredModelId`) regardless of what the *user's* actual chat request
+asked for. Only Master's one final synthesis call
+(`BackendAgentRuntimeContext.streamChat`, `core/agents/runtimeContext.ts`)
+honors the user's real `routingMode`/`preferredProviderId`/
+`preferredModelId`. This means a user's explicit MANUAL pin controls only
+the answer they actually see — it was never meant to (and doesn't) force
+Master's internal classification step or a delegated agent's own model
+choice onto the same pinned model, which may not even suit those very
+different task categories (`fast`/`research`/`reasoning` vs. the user's
+`chat` request).
+
 ## 5. Telemetry & the health rollup (M2.2)
 
 Every `chat()` call — success or failure, primary or fallback — is

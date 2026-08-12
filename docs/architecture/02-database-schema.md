@@ -27,6 +27,7 @@ an edit to an already-applied one.
 | `0015_seed_default_models.sql` | — | Seeds one `model_registry` row per provider's M1 default model (matches `core/providers/registry.ts`'s `PROVIDER_DEFAULT_MODELS`) so `tasks.model_id`'s foreign key always has a valid target |
 | `0016_model_registry_telemetry.sql` | — | M2: adds `model_registry.supports_structured_output`; adds `model_call_samples.provider_id`/`task_category`/`timed_out`/`used_as_fallback`/`input_tokens`/`output_tokens`/`response_status` |
 | `0017_backfill_default_model_capabilities.sql` | — | M2: backfills accurate capability data (context length, tool/vision/reasoning/structured-output support) for the five M1-seeded default models, mirroring `core/router/capabilityCatalog.ts` |
+| `0018_m3_agents_a2a_memory.sql` | — | M3: adds `agents.last_heartbeat_at`; `tasks.correlation_id`/`attempt` + index; `memory_items.importance`/`approval_status` + index; seeds the `research`/`reviewer` agent rows and refreshes `master`'s `agent_card`; seeds `agent_delegation_edges` for `master→research` and `master→reviewer` only |
 
 ## 2. Relationship overview
 
@@ -93,7 +94,32 @@ insert, which is the intended guardrail.
 `bot_findings.routed_task_id` links a deterministic detection to the agent
 `task` it spawned; that task's `parent_task_id` chain shows Reviewer
 validation as a child task; `events` rows tie the whole chain to a visible
-timeline for the Command Center.
+timeline for the Command Center. **M3 implements the agent half of this
+today** (`master → research → reviewer`, `tasks.parent_task_id` +
+`correlation_id` chaining exactly as described) — the bot-originated half
+(`bot_findings.routed_task_id`) is still a future milestone; no bots exist
+yet (`core/bots` is unimplemented).
+
+**M3's memory approval workflow is a column, not a separate table.**
+`memory_items.approval_status` (`approved` | `pending` | `rejected`,
+migration `0018`) gates retrieval directly in `searchMemory`'s `WHERE`
+clause — a `pending` row is structurally invisible to search until a
+human calls `POST /memory/:id/approve`, rather than relying on
+application code to remember to filter it out. `importance` (0–1,
+default 0.5) is a second, independent ranking signal from `confidence` —
+confidence is "how sure is this true," importance is "how much should
+this weigh in retrieval regardless of truth," and M3's `searchMemory`
+scoring blends both alongside trigram similarity and `pinned`.
+
+**Cross-vendor memory embeddings are a documented gap, not a faked
+feature.** `memory_items.embedding vector(1536)` exists in the schema
+(migration `0008`) but nothing in M3 writes to it — `core/memory`'s
+`searchMemory` uses `pg_trgm`'s `similarity()` on `content` instead, which
+is real, working lexical/trigram ranking, not a placeholder. Populating
+`embedding` for real needs a single embedding model usable consistently
+across whichever of the five providers/keys happen to be configured on a
+given request, which M3 explicitly does not attempt rather than faking
+with a fixed or random vector — see `04-agent-interfaces.md` §7.
 
 **Provider keys never appear in this schema at all — not even encrypted.**
 `provider_configs` deliberately has no ciphertext column. The key lives in

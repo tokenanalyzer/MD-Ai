@@ -174,3 +174,53 @@ This is exposed as one aggregate JSON document, not a metrics-scrape
 endpoint (no Prometheus exporter in M1 — see the framing above). It is
 enough to answer "is this 12GB box under pressure" without adding a
 service to the topology.
+
+### 9.2 M3 performance measurement
+
+No Oracle Cloud instance is available in this development sandbox — same
+honesty rule as Android device testing (`09-roadmap.md`): what follows is
+a **real, repeatable local measurement** (`services/backend/test/integration/perf.test.ts`,
+run against a real local Postgres + the actual backend process, provider
+HTTP mocked at near-zero latency), not a claim about production hardware.
+It isolates what M3's own bookkeeping costs — DB writes and process
+memory — from provider network/inference latency, which is mocked here
+and outside MD AI's control on real hardware regardless.
+
+**DB write footprint per turn** (measured row-count deltas):
+
+| Turn type | `tasks` | `task_messages` | `events` | `model_call_samples` |
+|---|---|---|---|---|
+| Direct answer (no delegation) | 1 | 2 | 6 | 2 (classification + synthesis) |
+| Full delegation tree (Research + Reviewer, APPROVE) | 3 | 2 | 22 | 4 (classification + research + review + synthesis) |
+
+The headline change from M1/M2: **every M3 chat turn now makes at least
+two model calls instead of one** (intent classification, then synthesis),
+and a delegated turn makes four. This is the real cost of M3.2's
+capability-based classification and is by design, not an inefficiency to
+fix — but it means M3 roughly doubles-to-quadruples per-turn model-call
+volume and event-table growth versus M1/M2, which matters for both
+provider rate limits and the `events` retention job's (`02-database-schema.md`
+§4) sweep volume as usage grows.
+
+**Backend-side wall time for a full delegation tree** (mocked provider
+calls, i.e. this is MD AI's own orchestration overhead only — DB
+round-trips, event-bus inserts, WS fan-out — not real model latency):
+**~51ms** for a 3-task, 22-event delegation tree in this sandbox. Real
+per-turn latency on Oracle hardware will be dominated by the 2–4 actual
+provider round-trips (typically 0.5–3s each depending on provider/model),
+not this backend-side overhead.
+
+**Process memory growth**: 15 additional delegation-tree turns in the
+same process grew RSS by ~0.65MB/turn (measured without `--expose-gc`, so
+this includes not-yet-collected garbage — an upper bound, not a floor).
+Nothing here suggests an obvious per-turn leak (e.g. an uncleaned
+`runtimeContext` closure or `chatStreamHub` entry); `chatStreamHub.ts`'s
+30-second linger-then-delete window for finished tasks means a burst of
+turns will show some transient growth by design, not as a leak signal.
+
+**Budget read-through:** none of this changes §2's resource budget
+allocation — the backend's RAM/CPU envelope was already sized for
+"scales with concurrent agent/tool calls," and M3 is still a single
+in-process Node service with no new container. The real thing to watch
+as M3 sees real usage is provider rate limits and event-table growth
+from the 2–4x call multiplier above, not CPU/RAM headroom.

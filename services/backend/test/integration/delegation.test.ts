@@ -16,7 +16,7 @@ import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js"
 import { collectTaskStream } from "../helpers/wsClient.js";
 import { buildTestAgentRegistry } from "../helpers/appDeps.js";
 import { createReviewerAgent } from "../../src/core/agents/reviewer/reviewerAgent.js";
-import type { BackendAgentRuntimeContext } from "../../src/core/agents/runtimeContext.js";
+import { makeFakeCtx } from "../helpers/fakeRuntimeContext.js";
 
 const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
@@ -163,11 +163,137 @@ describe("Master → Research → Reviewer delegation (M3)", () => {
     ]);
   });
 
+  it("bounces one REVISE through a second research attempt with the reviewer's feedback, then APPROVEs", async () => {
+    const classification = JSON.stringify({
+      delegate: true,
+      capability: "research",
+      taskObjective: "How many model providers does MD AI support?",
+      memoryCommand: null,
+      memoryCandidate: null,
+    });
+    const researchAttempt1 = JSON.stringify({
+      objective: "How many model providers does MD AI support?",
+      findings: [{ claim: "MD AI supports five providers exactly.", kind: "fact", source: null }],
+      limitations: ["web_search_unavailable"],
+      toolsUsed: [],
+    });
+    const reviewRevise = JSON.stringify({
+      decision: "REVISE",
+      issues: [{ type: "unsupported_claim", description: "Labeled as fact with no live verification available." }],
+      summary: "The provider count should be labeled less confidently.",
+    });
+    const researchAttempt2 = JSON.stringify({
+      objective: "How many model providers does MD AI support?",
+      findings: [{ claim: "MD AI supports five providers, per model training data with no live verification.", kind: "assumption", source: null }],
+      limitations: ["web_search_unavailable"],
+      toolsUsed: [],
+    });
+    const reviewApprove = JSON.stringify({ decision: "APPROVE", issues: [], summary: "Now appropriately hedged." });
+
+    for (const r of [
+      replyFor("intent classifier", [classification]),
+      // The revision attempt's prompt embeds the reviewer's feedback text
+      // (see researchAgent.ts's revisionNote) — match on that rather than
+      // request order, since both research calls hit the same endpoint.
+      replyFor("previously flagged issues", [researchAttempt2]),
+      replyFor("Research Agent inside MD AI", [researchAttempt1]),
+      replyFor("MD AI supports five providers exactly", [reviewRevise]),
+      replyFor("no live verification", [reviewApprove]),
+      replyFor("Master Agent inside MD AI", ["Five providers, ", "per available documentation."]),
+    ]) {
+      mockAgent.get("https://api.groq.com").intercept(r.intercept).reply(200, r.body);
+    }
+
+    const token = await pairedToken();
+    const conv = await request(app).post("/conversations").set("Authorization", `Bearer ${token}`).send({});
+    const taskRes = await request(app)
+      .post(`/conversations/${conv.body.data.id}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        parts: [{ type: "text", text: "How many model providers does MD AI support?" }],
+        providerKeys: { groq: "gsk-test-1234567890" },
+      });
+    const taskId = taskRes.body.data.id as string;
+
+    const frames = await collectTaskStream(`${wsBaseUrl}/ws/tasks/${taskId}?token=${token}`, 8000);
+    const text = frames.map((f) => f.delta).filter(Boolean).join("");
+    expect(text).toBe("Five providers, per available documentation.");
+    expect(frames.at(-1)).toMatchObject({ kind: "status", state: "completed" });
+
+    const tasksRes = await request(app).get(`/conversations/${conv.body.data.id}/tasks`).set("Authorization", `Bearer ${token}`);
+    const tasks = tasksRes.body.data as { taskType: string; assignedAgentId: string; state: string }[];
+    expect(tasks.filter((t) => t.assignedAgentId === "research")).toHaveLength(2);
+    expect(tasks.filter((t) => t.assignedAgentId === "reviewer")).toHaveLength(2);
+    expect(tasks.every((t) => t.state === "completed")).toBe(true);
+
+    const decisions = await pool.query(
+      "SELECT e.payload->>'decision' AS decision FROM events e JOIN tasks t ON t.id = e.task_id WHERE t.correlation_id = $1 AND e.event_type = 'review.completed' ORDER BY e.id",
+      [taskId],
+    );
+    expect(decisions.rows.map((r) => r.decision)).toEqual(["REVISE", "APPROVE"]);
+  });
+
+  it("stops after one REJECT (no further revision attempts) and still completes the chat honestly", async () => {
+    const classification = JSON.stringify({
+      delegate: true,
+      capability: "research",
+      taskObjective: "What was MD AI's revenue last quarter?",
+      memoryCommand: null,
+      memoryCandidate: null,
+    });
+    const research = JSON.stringify({
+      objective: "What was MD AI's revenue last quarter?",
+      findings: [{ claim: "MD AI generated $4.2M in revenue last quarter.", kind: "fact", source: null }],
+      limitations: ["web_search_unavailable"],
+      toolsUsed: [],
+    });
+    const reject = JSON.stringify({
+      decision: "REJECT",
+      issues: [{ type: "hallucination_risk", description: "Specific financial figures invented with no tool access." }],
+      summary: "Fabricated a specific number with no basis; unusable.",
+    });
+
+    for (const r of [
+      replyFor("intent classifier", [classification]),
+      replyFor("Research Agent inside MD AI", [research]),
+      replyFor("Reviewer inside MD AI", [reject]),
+      replyFor("Master Agent inside MD AI", ["I don't have ", "a verified answer for that."]),
+    ]) {
+      mockAgent.get("https://api.groq.com").intercept(r.intercept).reply(200, r.body);
+    }
+
+    const token = await pairedToken();
+    const conv = await request(app).post("/conversations").set("Authorization", `Bearer ${token}`).send({});
+    const taskRes = await request(app)
+      .post(`/conversations/${conv.body.data.id}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        parts: [{ type: "text", text: "What was MD AI's revenue last quarter?" }],
+        providerKeys: { groq: "gsk-test-1234567890" },
+      });
+    const taskId = taskRes.body.data.id as string;
+
+    const frames = await collectTaskStream(`${wsBaseUrl}/ws/tasks/${taskId}?token=${token}`, 8000);
+    expect(frames.at(-1)).toMatchObject({ kind: "status", state: "completed" });
+
+    const tasksRes = await request(app).get(`/conversations/${conv.body.data.id}/tasks`).set("Authorization", `Bearer ${token}`);
+    const tasks = tasksRes.body.data as { taskType: string; assignedAgentId: string; state: string }[];
+    // Exactly one research attempt — REJECT does not trigger the revision loop.
+    expect(tasks.filter((t) => t.assignedAgentId === "research")).toHaveLength(1);
+    expect(tasks.filter((t) => t.assignedAgentId === "reviewer")).toHaveLength(1);
+
+    const decisions = await pool.query(
+      "SELECT e.payload->>'decision' AS decision FROM events e JOIN tasks t ON t.id = e.task_id WHERE t.correlation_id = $1 AND e.event_type = 'review.completed'",
+      [taskId],
+    );
+    expect(decisions.rows.map((r) => r.decision)).toEqual(["REJECT"]);
+  });
+
   it("refuses to review another Reviewer task's output without ever calling the model", async () => {
     const reviewer = createReviewerAgent();
     let failure: { code: string; message: string; retryable: boolean } | undefined;
-    const fakeCtx: BackendAgentRuntimeContext = {
-      task: {
+    const fakeCtx = makeFakeCtx(
+      {
         id: "t-reviewer-self",
         assignedAgentId: "reviewer",
         taskType: "review",
@@ -177,37 +303,9 @@ describe("Master → Research → Reviewer delegation (M3)", () => {
           targetTaskId: "t-earlier-review",
           result: { objective: "x", findings: [], limitations: [], toolsUsed: [] },
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       },
-      history: [],
-      emit: () => {},
-      selectModel: async () => {
-        throw new Error("must not select a model when refusing self-review");
-      },
-      completeChat: async () => {
-        throw new Error("must not call the model when refusing self-review");
-      },
-      callTool: async () => {
-        throw new Error("not used");
-      },
-      delegate: async () => {
-        throw new Error("not used");
-      },
-      streamChat: async () => {
-        throw new Error("not used");
-      },
-      addAssistantMessage: async () => {},
-      finishCanceled: async () => {},
-      start: async () => {},
-      finishSuccess: async () => {
-        throw new Error("must not report success when refusing self-review");
-      },
-      finishFailure: async (error) => {
-        failure = error;
-      },
-      publishEvent: async () => {},
-    };
+      { finishFailure: async (error) => void (failure = error) },
+    );
 
     await reviewer.handleTask(fakeCtx);
 

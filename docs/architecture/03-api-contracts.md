@@ -54,7 +54,13 @@ guarantee and how it's tested.
 Chat streaming happens over the same WebSocket gateway used for Command
 Center events (§5), scoped to `taskId` — one connection serves both a chat
 screen and the Command Center simultaneously, so opening the Command Center
-never duplicates a chat's model calls.
+never duplicates a chat's model calls. `TaskStreamChunk.kind` is one of
+`token` (answer text delta), `status` (`completed`/`failed`/`canceled`),
+`tool_call`, `message`, or — since M3 — `agent_progress`, a short
+human-readable label (e.g. "Research Agent working…") Master or a
+delegated agent emits while a sub-task is in flight. `agent_progress` is
+always a safe status string, never chain-of-thought or raw model output
+(`07-security-model.md`).
 
 ## 3. Provider / API Key Vault
 
@@ -88,15 +94,15 @@ holds no credential to look up.
 
 ## 4. Agents & bots
 
-| Method | Path | Body → Response |
-|---|---|---|
-| `GET` | `/agents` | → `AgentCard[]` with `status` |
-| `PATCH` | `/agents/:id` | `{ enabled }` → `AgentCard` |
-| `GET` | `/agents/:id/tasks` | `?state=&limit=` → `Task[]` |
-| `GET` | `/bots` | → `Bot[]` with last run summary |
-| `PATCH` | `/bots/:id` | `{ enabled?, config?, scheduleCron? }` → `Bot` |
-| `POST` | `/bots/:id/run` | → `BotRun` (manual trigger, e.g. "check now") |
-| `GET` | `/bots/:id/findings` | `?since=` → `BotFinding[]` |
+| Method | Path | Body → Response | Status |
+|---|---|---|---|
+| `GET` | `/agents` | → `AgentCard[]` with `status` (merges the `agents` table's live `status`/`last_heartbeat_at` with the JSONB `agent_card`'s descriptive fields) | **Implemented (M3)** |
+| `PATCH` | `/agents/:id` | `{ enabled }` → `AgentCard` | **Implemented (M3)** |
+| `GET` | `/agents/:id/tasks` | `?state=&limit=` → `Task[]` | Not yet implemented — use `GET /conversations/:id/tasks`, which already returns every task in a conversation's delegation tree (root + children), for now |
+| `GET` | `/bots` | → `Bot[]` with last run summary | Future milestone — `core/bots` doesn't exist yet |
+| `PATCH` | `/bots/:id` | `{ enabled?, config?, scheduleCron? }` → `Bot` | Future milestone |
+| `POST` | `/bots/:id/run` | → `BotRun` (manual trigger, e.g. "check now") | Future milestone |
+| `GET` | `/bots/:id/findings` | `?since=` → `BotFinding[]` | Future milestone |
 
 ## 5. Events / Command Center
 
@@ -109,16 +115,21 @@ holds no credential to look up.
 
 | Method | Path | Body → Response |
 |---|---|---|
-| `GET` | `/memory` | `?category=&q=&tags=` → `MemoryItem[]` (text/tag search) |
-| `POST` | `/memory/search` | `{ query, category?, topK? }` → `MemoryItem[]` (semantic/embedding search) |
-| `POST` | `/memory` | `{ category, content, tags?, pinned? }` → `MemoryItem` (explicit "remember this") |
-| `PATCH` | `/memory/:id` | `{ content?, tags?, pinned? }` → `MemoryItem` |
+| `GET` | `/memory` | `?category=&q=` → `MemoryItem[]` (lexical/trigram search over approved items) |
+| `POST` | `/memory/search` | `{ query, category?, topK? }` → `MemoryItem[]` (same ranking as `GET`, explicit body form — what Master's context-retrieval step calls internally) |
+| `GET` | `/memory/pending` | → `MemoryItem[]` (`approval_status = 'pending'` — system-proposed candidates awaiting a human decision) |
+| `POST` | `/memory` | `{ category, content, tags?, pinned?, importance? }` → `MemoryItem`, always created `approved` (explicit user "remember this" via the Vault/Memory UI — direct user intent is its own approval) |
+| `PATCH` | `/memory/:id` | `{ content?, tags?, pinned?, importance? }` → `MemoryItem` |
 | `DELETE` | `/memory/:id` | → `204` (soft delete — "forget this") |
+| `POST` | `/memory/:id/approve` | → `MemoryItem` (moves a `pending` candidate to `approved`, making it retrievable) |
+| `POST` | `/memory/:id/reject` | → `MemoryItem` (moves a `pending` candidate to `rejected`, permanently excluded from retrieval) |
 
-Chat-native memory commands (`"Remember this."` / `"Forget this."`) are
-handled by the Master Agent delegating to `memory-agent`, which calls these
-same endpoints internally via its `AgentRuntimeContext` — there is no
-separate internal API, the agent uses the identical contract.
+Chat-native memory commands (`"Remember this."` / `"Forget this."`) and
+system-proposed candidates are handled by the Master Agent itself in M3 —
+there is no separate `memory-agent` (see `04-agent-interfaces.md` §2/§7).
+Master calls `core/memory`'s `MemoryEngine` directly (the same interface
+these REST routes sit on top of, not a second code path) rather than going
+through its own REST API internally.
 
 ## 7. Automations
 

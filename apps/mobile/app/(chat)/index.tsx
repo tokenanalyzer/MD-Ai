@@ -17,8 +17,18 @@ import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useChatStore } from "../../src/state/chatStore";
 
 export default function ChatScreen() {
-  const { messages, connection, lastError, send, retryLast, cancelActive, activeTaskId, routingMode, preferredModelId } =
-    useChatStore();
+  const {
+    messages,
+    connection,
+    lastError,
+    send,
+    retryLast,
+    cancelActive,
+    activeTaskId,
+    routingMode,
+    preferredModelId,
+    progressLabel,
+  } = useChatStore();
   const [draft, setDraft] = useState("");
   const listRef = useRef<FlatList>(null);
 
@@ -38,7 +48,11 @@ export default function ChatScreen() {
           <View style={styles.statusRow}>
             <StatusDot status={connection === "error" ? "error" : connection === "working" ? "working" : "idle"} />
             <Text style={styles.statusText}>
-              {connection === "working" ? "Master Agent is answering…" : connection === "error" ? "Connection issue" : "Ready"}
+              {connection === "working"
+                ? (progressLabel ?? "Master Agent is answering…")
+                : connection === "error"
+                  ? "Connection issue"
+                  : "Ready"}
             </Text>
           </View>
           <Text style={styles.routingBadge}>

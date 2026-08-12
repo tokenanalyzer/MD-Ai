@@ -53,6 +53,11 @@ export async function resetTestData(p: pg.Pool): Promise<void> {
       user_enabled = true, user_priority = 0
     WHERE id = ANY($1)
   `, [SEEDED_MODEL_IDS]);
+
+  // Same leakage risk as model_registry above: a test that disables an
+  // agent (PATCH /agents/:id) or records a heartbeat must not affect
+  // later tests/files sharing this database.
+  await p.query(`UPDATE agents SET enabled = true, status = 'idle', last_heartbeat_at = NULL`);
 }
 
 export async function closeTestPool(): Promise<void> {
