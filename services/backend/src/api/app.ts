@@ -5,6 +5,7 @@ import type { Queue } from "bullmq";
 import type { Logger } from "pino";
 import type { AgentRegistry, MemoryEngine, ModelRegistry } from "@mdai/shared-types";
 import type { EventBus } from "../core/events/eventBus.js";
+import type { ToolRegistryService } from "../core/mcp/toolRegistryService.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./routes/auth.js";
@@ -15,6 +16,7 @@ import { tasksRouter } from "./routes/tasks.js";
 import { healthRouter, healthzRouter } from "./routes/health.js";
 import { memoryRouter } from "./routes/memory.js";
 import { agentsRouter } from "./routes/agents.js";
+import { toolsRouter } from "./routes/tools.js";
 
 export interface AppDeps {
   pool: pg.Pool;
@@ -24,6 +26,7 @@ export interface AppDeps {
   modelRegistry: ModelRegistry;
   agentRegistry: AgentRegistry;
   memoryEngine: MemoryEngine;
+  toolRegistry: ToolRegistryService;
   logger: Logger;
 }
 
@@ -40,7 +43,11 @@ export function createApp(deps: AppDeps): Express {
   app.use("/models", modelsRouter(deps.pool, deps.modelRegistry));
   app.use("/agents", agentsRouter(deps.pool, deps.agentRegistry));
   app.use("/memory", memoryRouter(deps.pool, deps.memoryEngine));
-  app.use("/conversations", conversationsRouter(deps.pool, deps.eventBus, deps.modelRegistry, deps.agentRegistry));
+  app.use("/tools", toolsRouter(deps.pool, deps.toolRegistry));
+  app.use(
+    "/conversations",
+    conversationsRouter(deps.pool, deps.eventBus, deps.modelRegistry, deps.agentRegistry, deps.toolRegistry),
+  );
   app.use("/tasks", tasksRouter(deps.pool));
 
   app.use(errorHandler(deps.logger));

@@ -11,12 +11,13 @@ import type {
   TaskCategory,
 } from "@mdai/shared-types";
 import type { EventBus } from "../events/eventBus.js";
+import type { ToolRegistryService } from "../mcp/toolRegistryService.js";
 import { addTaskMessage, createTask, getTask, listTaskMessages, updateTaskState, type TaskRow } from "../../db/repositories/taskRepo.js";
 import { resolveRoutingDecision } from "../router/resolveRoutingDecision.js";
 import { completeChatOnce } from "../router/completeChat.js";
 import { streamChatWithFallback } from "../router/modelRouter.js";
 import { publishChunk } from "../../api/ws/chatStreamHub.js";
-import { ToolNotAvailableError } from "../mcp/errors.js";
+import { invokeTool } from "../mcp/mcpHost.js";
 import { DelegationNotAuthorizedError, AgentUnavailableError, TaskCanceledError } from "./errors.js";
 import { toSharedTask, toSharedTaskMessage } from "./mappers.js";
 
@@ -61,7 +62,10 @@ export interface RuntimeContextDeps {
   eventBus: EventBus;
   modelRegistry: ModelRegistry;
   agentRegistry: AgentRegistry;
+  toolRegistry: ToolRegistryService;
   providerKeys: Record<string, string>;
+  /** Transient, request-scoped tool credentials (e.g. a search provider key) — travels exactly like `providerKeys`, never persisted. */
+  toolKeys: Record<string, string>;
   /** The task id the mobile client's WS is actually subscribed to — every emit()/agent_progress chunk in this delegation tree routes here. */
   rootTaskId: string;
   /** Best-effort cancellation check, consulted between streamed chunks. Defaults to "never canceled" when omitted. */
@@ -111,8 +115,11 @@ export async function buildRuntimeContext(
       );
     },
 
-    async callTool(toolId) {
-      throw new ToolNotAvailableError(toolId);
+    async callTool(toolId, input) {
+      return invokeTool(
+        { pool: deps.pool, eventBus: deps.eventBus, toolRegistry: deps.toolRegistry },
+        { toolId, agentId, taskId: taskRow.id, input, toolKeys: deps.toolKeys },
+      );
     },
 
     async streamChat(input) {

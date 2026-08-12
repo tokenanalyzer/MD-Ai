@@ -191,7 +191,7 @@ and outside MD AI's control on real hardware regardless.
 | Turn type | `tasks` | `task_messages` | `events` | `model_call_samples` |
 |---|---|---|---|---|
 | Direct answer (no delegation) | 1 | 2 | 6 | 2 (classification + synthesis) |
-| Full delegation tree (Research + Reviewer, APPROVE) | 3 | 2 | 22 | 4 (classification + research + review + synthesis) |
+| Full delegation tree (Research + Reviewer, APPROVE, `web_search` unavailable) | 3 | 2 | 27 | 4 (classification + research + review + synthesis) |
 
 The headline change from M1/M2: **every M3 chat turn now makes at least
 two model calls instead of one** (intent classification, then synthesis),
@@ -200,15 +200,19 @@ capability-based classification and is by design, not an inefficiency to
 fix — but it means M3 roughly doubles-to-quadruples per-turn model-call
 volume and event-table growth versus M1/M2, which matters for both
 provider rate limits and the `events` retention job's (`02-database-schema.md`
-§4) sweep volume as usage grows.
+§4) sweep volume as usage grows. M4 adds 5 more events per delegation
+tree (`tool.discovered`/`.permission.checked`/`.selected`/`.called`/one
+terminal event) for Research's `web_search` attempt — see §9.3.
 
 **Backend-side wall time for a full delegation tree** (mocked provider
 calls, i.e. this is MD AI's own orchestration overhead only — DB
 round-trips, event-bus inserts, WS fan-out — not real model latency):
-**~51ms** for a 3-task, 22-event delegation tree in this sandbox. Real
+**~65–80ms** for a 3-task, 27-event delegation tree in this sandbox
+(M4's tool-call overhead is a few ms on top of M3's ~51ms baseline). Real
 per-turn latency on Oracle hardware will be dominated by the 2–4 actual
-provider round-trips (typically 0.5–3s each depending on provider/model),
-not this backend-side overhead.
+provider round-trips (typically 0.5–3s each depending on provider/model)
+plus, when a tool actually runs, real network fetch time — not this
+backend-side overhead.
 
 **Process memory growth**: 15 additional delegation-tree turns in the
 same process grew RSS by ~0.65MB/turn (measured without `--expose-gc`, so
@@ -224,3 +228,32 @@ allocation — the backend's RAM/CPU envelope was already sized for
 in-process Node service with no new container. The real thing to watch
 as M3 sees real usage is provider rate limits and event-table growth
 from the 2–4x call multiplier above, not CPU/RAM headroom.
+
+### 9.3 M4 per-tool invocation latency
+
+Same local-sandbox measurement discipline as §9.2 — HTTP mocked, so this
+is MD AI's own per-call overhead (SSRF checks, DB writes, event
+publishing, and for `pdf_reader` real parsing work), not real network or
+search-provider latency (`test/integration/toolPerf.test.ts`):
+
+| Tool | Measured latency | Notes |
+|---|---|---|
+| `calculator` | ~1ms | Pure local computation, no I/O |
+| `time_date` | ~1ms | Pure local computation, no I/O |
+| `generic_http_get` | ~5ms | One mocked HTTPS round-trip + SSRF check |
+| `file_reader` | ~5ms | One mocked HTTPS round-trip + SSRF check |
+| `web_search` | ~9ms | One mocked HTTPS round-trip to the search provider |
+| `url_reader` | ~20ms | Mocked fetch + naive HTML-to-text extraction |
+| `pdf_reader` | ~280ms | Mocked fetch + real `pdf-parse`/pdfjs initialization and parsing — the one tool whose local processing cost, not I/O, dominates |
+
+`pdf_reader`'s ~280ms is the standout number: it is genuinely doing real
+PDF parsing work (not mocked), so this is a realistic floor for that
+tool's own cost even before any network fetch time is added on real
+hardware. No new BullMQ worker or persistent process was added for
+tool execution — every invocation runs synchronously within the
+agent's existing task-handling call, consistent with §2's "no
+unnecessary permanent workers" discipline.
+
+**No new container, no new queue.** M4's Tool Registry and MCP host are
+additional code paths inside the existing single backend process — the
+container topology in §3 is unchanged.

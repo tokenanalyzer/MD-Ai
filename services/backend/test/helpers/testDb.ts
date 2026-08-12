@@ -36,10 +36,13 @@ const SEEDED_MODEL_IDS = [
  * tests.
  */
 export async function resetTestData(p: pg.Pool): Promise<void> {
+  // agent_tool_grants is seeded catalog data since migration 0019 (M4) —
+  // same treatment as agent_delegation_edges/agents/tools, deliberately
+  // NOT truncated here. tool_invocations remains per-run state.
   await p.query(`
     TRUNCATE TABLE
       audit_log, evolution_proposals, automation_runs, automations,
-      tool_invocations, agent_tool_grants, bot_findings, bot_runs,
+      tool_invocations, bot_findings, bot_runs,
       memory_items, events, task_messages, tasks, conversations,
       model_call_samples, provider_default_models, provider_configs,
       device_sessions, owner, app_config
@@ -58,6 +61,10 @@ export async function resetTestData(p: pg.Pool): Promise<void> {
   // agent (PATCH /agents/:id) or records a heartbeat must not affect
   // later tests/files sharing this database.
   await p.query(`UPDATE agents SET enabled = true, status = 'idle', last_heartbeat_at = NULL`);
+
+  // Same leakage risk again: the MCP host records real health transitions
+  // (healthy/degraded/unavailable) on every tool invocation.
+  await p.query(`UPDATE tools SET enabled = true, health = 'unknown', health_detail = NULL, last_verified_at = NULL`);
 }
 
 export async function closeTestPool(): Promise<void> {

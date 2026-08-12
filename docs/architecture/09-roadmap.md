@@ -120,10 +120,53 @@ those changes are folded into the doc set as of M1.
   limitation as M1/M2 — see the M3 completion report for the exact
   verified/unverified split.
 
-## M4 — MCP tool layer
-- `core/mcp` host, `agent_tool_grants`, approval gate wiring.
-- Initial tools: `web.search`, `web.fetch`, `code.exec` (sandboxed,
-  `requires_approval = true`), giving Research Agent real capability.
+## M4 — MCP tool layer — **delivered**
+- Tool Registry promoted to a real DB-backed subsystem
+  (`core/mcp/toolRegistryService.ts`, migration `0019`): typed
+  `ToolDefinition`s (version, MCP metadata, required capabilities, risk
+  level, default access, health, timeout, last verified, owner), never a
+  hardcoded tool map.
+- MCP execution layer (`core/mcp/mcpHost.ts`'s `invokeTool()`) is the only
+  path from an agent to a tool: discover → permission-check → execute
+  (timeout-bounded) → record → return, with a full `tool_invocations` row
+  and 8 metadata-only lifecycle events per call
+  (`tool.discovered`/`.selected`/`.permission.checked`/`.called`/
+  `.completed`/`.failed`/`.timeout`/`.blocked`) — never a secret or a huge
+  payload logged or published.
+- Seven built-in tools, exactly the safe set instructed: `web_search`
+  (vendor-agnostic `SearchProvider` abstraction, Brave Search
+  implemented, honest `ToolNotAvailableError` with no fabricated results
+  when unconfigured), `url_reader` and `generic_http_get` (both
+  SSRF-protected via `core/security/ssrfGuard.ts` — HTTPS-only, private/
+  loopback/link-local/cloud-metadata IP blocking, per-redirect-hop
+  re-validation), `file_reader` and `pdf_reader` (HTTPS-URL-scoped, since
+  no object-storage subsystem exists in this codebase yet), `calculator`
+  (hand-rolled safe expression evaluator, never `eval`), `time_date`
+  (deterministic). No browser automation, shell/code execution, trading,
+  or social publishing — none of that was built, per instruction.
+- Capability-based permissions (`agent_tool_grants`, data not code):
+  Research gets the full safe set (`generic_http_get` at `restricted`);
+  Reviewer and Master get none in M4.
+- Research Agent upgraded from "tool unavailable" to real tool-assisted
+  research: search → read up to 3 sources → structured findings that
+  cite only URLs actually retrieved this turn — an anti-hallucination
+  guard strips and downgrades any source the model merely claims but
+  never retrieved.
+- Prompt injection defense: explicit trust-boundary markers around every
+  piece of retrieved content plus the structural guarantee that a tool's
+  output can only ever become inert text, never a trigger for another
+  tool call or a permission/routing change.
+- Mobile: no new code needed — M3's `agent_progress` status-line
+  infrastructure already renders Research's new "Searching the web…" /
+  "Reading N sources…" labels; verified over a real WebSocket.
+- 35 new M4 tests (SSRF guard, safe fetch redirect/size/timeout handling,
+  the calculator's rejection of arbitrary code, prompt injection
+  construction + structural containment, MCP host permission-bypass/
+  timeout/malformed-response handling, a full tool-assisted research
+  end-to-end test, and per-tool latency measurement) on top of the 108
+  carried over from M1–M3 — **143 total, zero regressions**. Local
+  (non-Oracle) per-tool latency measurement in
+  `08-deployment-architecture.md` §9.3.
 
 ## M5 — Bot Engine + notifications
 - `core/bots` scheduler (BullMQ), first bots: `price-monitor`,

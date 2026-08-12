@@ -20,8 +20,8 @@ const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
-const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
+const { agentRegistry, memoryEngine, toolRegistry } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, logger });
 
 let server: Server;
 let wsBaseUrl: string;
@@ -179,10 +179,12 @@ describe("M3 performance measurement (M3.12)", () => {
 
     // Three tasks (master, research, reviewer), four model calls
     // (classification + research + review + synthesis), a bounded, small
-    // event count for the whole tree.
+    // event count for the whole tree — 22 A2A/model events plus 5 tool
+    // lifecycle events for Research's web_search attempt (M4; no search
+    // provider key configured in this test, so it fails honestly).
     expect(delegationDelta.tasks).toBe(3);
     expect(delegationDelta.model_call_samples).toBe(4);
-    expect(delegationDelta.events).toBeLessThanOrEqual(22);
+    expect(delegationDelta.events).toBeLessThanOrEqual(27);
 
     if (global.gc) global.gc();
     const rssBefore = process.memoryUsage().rss;

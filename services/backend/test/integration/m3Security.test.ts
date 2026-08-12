@@ -30,8 +30,8 @@ const captureStream = new Writable({
 });
 const logger = pino({ level: "debug" }, captureStream);
 const modelRegistry = new ModelRegistryService(pool);
-const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
+const { agentRegistry, memoryEngine, toolRegistry } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, logger });
 
 let server: Server;
 let wsBaseUrl: string;

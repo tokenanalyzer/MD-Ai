@@ -52,10 +52,24 @@ Command Center show a coherent timeline after the phone was asleep.
 | `review.started` / `.completed` (M3) | Reviewer Agent | Reviewer node pulse; `.completed` carries the `APPROVE`/`REVISE`/`REJECT` decision |
 | `memory.created` (M3) | Master, on an explicit "Remember this" or a system-proposed candidate | Memory node pulse; carries `approvalStatus` so pending vs. approved renders differently |
 | `memory.retrieved` (M3) | Master, before every response | Memory node → Master edge pulse; carries a **count and ids only, never content** (`07-security-model.md`) |
+| `tool.discovered` (M4) | MCP host, on Tool Registry lookup | Tool node appears on the task path |
+| `tool.selected` (M4) | MCP host, once permission passes and an invocation is created | Tool node highlighted as "about to run" |
+| `tool.permission.checked` (M4) | MCP host | Carries the checked `accessLevel` (`allowed`/`restricted`/`denied`) |
 | `tool.called` / `tool.completed` | MCP host | Node → tool icon flash, latency shown |
+| `tool.failed` (M4) | MCP host, handler threw | Tool node error glow; carries `errorCode`, never the raw error/output |
+| `tool.timeout` (M4) | MCP host, the tool's own `timeoutMs` elapsed | Tool node error glow with a timeout-specific reason |
+| `tool.blocked` (M4) | MCP host, permission denied or an SSRF/security guard refused the call | Tool node blocked-state glow; `reason` is safe to show (never a secret) |
 | `model.selected` / `model.switched` | Model Router | Provider/model badge on the task path; switch shows the fallback reason |
 | `bot.started` / `.stopped` / `.alert` | Bot Engine | Bot node pulse; `.alert` draws the edge into the escalated agent's task |
 | `automation.triggered` | Automation runner | Automation node fires, links to the resulting task or notification |
+
+M4 note: a real tool invocation's events fire in this order —
+`tool.discovered` → `tool.permission.checked` → (if denied: `tool.blocked`,
+stop) → `tool.selected` → `tool.called` → exactly one of
+`tool.completed`/`tool.failed`/`tool.timeout`/`tool.blocked`. None of
+these ever carry the tool's `input`/`output` payload or `toolKeys` —
+metadata (ids, status, latency, a safe `reason`/`errorCode` string) only,
+per `07-security-model.md` §10.
 
 M3 note: the `agent.task.*` events are M1's chat-specific naming, kept for
 backward compatibility; every agent's *own* lifecycle (root or delegated)

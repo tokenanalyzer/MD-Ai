@@ -2,6 +2,7 @@ import { Router } from "express";
 import type pg from "pg";
 import type { AgentRegistry, ChatMessage, ModelRegistry } from "@mdai/shared-types";
 import type { EventBus } from "../../core/events/eventBus.js";
+import type { ToolRegistryService } from "../../core/mcp/toolRegistryService.js";
 import { authGuard } from "../middleware/authGuard.js";
 import { AppError } from "../errors.js";
 import { createConversationBodySchema, sendMessageBodySchema } from "../schemas.js";
@@ -58,6 +59,7 @@ export function conversationsRouter(
   eventBus: EventBus,
   modelRegistry: ModelRegistry,
   agentRegistry: AgentRegistry,
+  toolRegistry: ToolRegistryService,
 ): Router {
   const router = Router();
   router.use(authGuard(pool));
@@ -167,8 +169,10 @@ export function conversationsRouter(
         eventBus,
         modelRegistry,
         agentRegistry,
+        toolRegistry,
         task: finalTask,
         providerKeys: body.providerKeys,
+        toolKeys: body.toolKeys ?? {},
       });
 
       res.status(201).json({ data: toTaskDto(finalTask) });

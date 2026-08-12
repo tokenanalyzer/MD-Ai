@@ -22,8 +22,8 @@ const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
-const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
+const { agentRegistry, memoryEngine, toolRegistry } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, logger });
 
 let server: Server;
 let wsBaseUrl: string;
@@ -145,6 +145,14 @@ describe("Master → Research → Reviewer delegation (M3)", () => {
       "message.sent",
       "task.started",
       "agent.started",
+      // Research's real web_search attempt (M4) — no search provider key
+      // is configured in this test, so it fails honestly (tool.failed),
+      // exactly the disclosed-limitation path researchAgent.ts handles.
+      "tool.discovered",
+      "tool.permission.checked",
+      "tool.selected",
+      "tool.called",
+      "tool.failed",
       "task.completed",
       "agent.completed",
       "message.received",

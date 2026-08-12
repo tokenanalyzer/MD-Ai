@@ -256,3 +256,62 @@ structurally, not by convention:
   human decision.** §"Approval policy" in `04-agent-interfaces.md` §7 —
   enforced at the query layer (`searchMemory`'s `WHERE approval_status =
   'approved'`), not by trusting every write path to set the right flag.
+
+## 10. M4: MCP tool layer security guarantees
+
+Full detail (SSRF protection internals, the permission table, the prompt
+injection trust-boundary design) lives in `11-mcp-tools.md` §7 — this
+section is the security-model-level summary and the list of what's
+verified where.
+
+- **No tool credential (`toolKeys`) is ever persisted or logged**, same
+  guarantee and same mechanism as `providerKeys` (§3.2): held only in the
+  request handler's closure, passed into `ToolExecutionContext.toolKeys`,
+  never written to `tool_invocations.input`, never included in any
+  `tool.*` event. Verified by `test/integration/mcpHostSecurity.test.ts`
+  and the whole-delegation-tree sweep in
+  `test/integration/m3Security.test.ts`.
+- **Every tool call passes an explicit permission check before
+  execution** — `mcpHost.invokeTool()` checks `agent_tool_grants` (data,
+  not code, same "absence is denial" pattern as `agent_delegation_edges`)
+  before creating an invocation row; a denial publishes `tool.blocked` and
+  throws, never silently no-ops. Verified by
+  `test/integration/mcpHostSecurity.test.ts`'s permission-bypass case.
+- **SSRF protection is real and tested**, not just described: HTTPS-only,
+  private/loopback/link-local IP blocking (which also covers the
+  `169.254.169.254` cloud metadata endpoint shared by AWS/GCP/Azure/OCI),
+  known metadata hostnames blocked by name, and every redirect hop
+  re-validated (a redirect to a private IP is refused exactly like a
+  direct request to one). The one honestly-documented gap: DNS-rebinding
+  between the safety check and the actual connection isn't closed (would
+  require pinning the TCP connection to the validated IP). See
+  `11-mcp-tools.md` §7.1 and `test/unit/ssrfGuard.test.ts` /
+  `test/unit/safeFetch.test.ts` for the exact coverage.
+- **Prompt injection has two independent layers**, not reliance on a
+  single mitigation: (1) retrieved tool content is always wrapped in
+  explicit "UNTRUSTED EXTERNAL CONTENT" markers with an instruction never
+  to treat it as authoritative, and (2) structurally, a tool's output can
+  only ever become inert text fed through `extractJson()` — there is no
+  code path that lets a tool result trigger another tool call, change a
+  permission, or alter routing. `test/unit/promptInjectionDefense.test.ts`
+  verifies both: the markers are actually constructed correctly, and a
+  page that explicitly tries to invoke `generic_http_get` and exfiltrate
+  credentials results in exactly the two tool calls the agent's own code
+  made — never a third. Whether a *given* LLM actually resists a crafted
+  payload depends on the model itself, which this codebase cannot
+  control or verify — the tests prove construction and structural
+  containment, not model behavior.
+- **`generic_http_get` cannot be used to invent or forward a credential**
+  — its input schema has no `headers`/`authorization` field at all, so
+  there is nothing for a model to fill in even if it tried.
+- **The anti-hallucination source guard closes the "trust the model's own
+  citation" gap.** Research Agent never accepts a `source` URL the model
+  merely *claims* — only URLs actually present in this turn's retrieved
+  search/read results are accepted; anything else is stripped and the
+  finding downgraded to `"uncertain"`. Verified end-to-end with a mocked
+  model response that tries to sneak in a fabricated citation
+  (`test/integration/researchTools.test.ts`).
+- **Every tool result is bounded** (`core/mcp/tools/resultLimits.ts`,
+  `safeFetch`/`safeFetchBinary`'s streamed `maxBytes`) — no oversized page
+  or file content reaches an LLM context or gets buffered unbounded in
+  memory.

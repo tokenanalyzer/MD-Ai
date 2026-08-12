@@ -58,6 +58,8 @@ export const sendMessageBodySchema = z.object({
   providerKeys: z.record(z.string(), z.string().min(1)).refine((v) => Object.keys(v).length > 0, {
     message: "providerKeys must include at least one provider",
   }),
+  /** Transient, request-scoped tool credentials (e.g. a search-provider API key), keyed by provider id — same non-persistence guarantee as providerKeys. Optional: most tools need no key at all. */
+  toolKeys: z.record(z.string(), z.string().min(1)).optional(),
   preferredProviderId: z.string().optional(),
   preferredModelId: z.string().optional(),
   taskCategory: taskCategorySchema.optional(),

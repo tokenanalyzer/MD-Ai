@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { AgentRegistry, ModelRegistry } from "@mdai/shared-types";
 import type { EventBus } from "../core/events/eventBus.js";
+import type { ToolRegistryService } from "../core/mcp/toolRegistryService.js";
 import { cancelTaskCascade, getTask, type TaskRow } from "../db/repositories/taskRepo.js";
 import { buildRuntimeContext } from "../core/agents/runtimeContext.js";
 import { publishChunk, finishTask } from "./ws/chatStreamHub.js";
@@ -10,8 +11,11 @@ export interface DispatchMasterAgentTaskInput {
   eventBus: EventBus;
   modelRegistry: ModelRegistry;
   agentRegistry: AgentRegistry;
+  toolRegistry: ToolRegistryService;
   task: TaskRow;
   providerKeys: Record<string, string>;
+  /** Transient, request-scoped tool credentials (e.g. a search provider key) — same non-persistence guarantee as providerKeys. */
+  toolKeys: Record<string, string>;
 }
 
 const canceledTaskIds = new Set<string>();
@@ -39,7 +43,7 @@ export function requestCancel(taskId: string): void {
  * (docs/architecture/07-security-model.md §3.2).
  */
 export function dispatchMasterAgentTask(input: DispatchMasterAgentTaskInput): void {
-  const { task, pool, eventBus, modelRegistry, agentRegistry, providerKeys } = input;
+  const { task, pool, eventBus, modelRegistry, agentRegistry, toolRegistry, providerKeys, toolKeys } = input;
   void (async () => {
     let finalState: "completed" | "failed" | "canceled" = "completed";
     try {
@@ -52,7 +56,9 @@ export function dispatchMasterAgentTask(input: DispatchMasterAgentTaskInput): vo
           eventBus,
           modelRegistry,
           agentRegistry,
+          toolRegistry,
           providerKeys,
+          toolKeys,
           rootTaskId: task.id,
           isCanceled: () => canceledTaskIds.has(task.id),
         },

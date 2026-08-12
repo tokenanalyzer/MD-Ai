@@ -15,8 +15,8 @@ const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
-const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
+const { agentRegistry, memoryEngine, toolRegistry } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, logger });
 
 beforeEach(async () => {
   await resetTestData(pool);

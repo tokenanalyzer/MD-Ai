@@ -28,6 +28,7 @@ an edit to an already-applied one.
 | `0016_model_registry_telemetry.sql` | — | M2: adds `model_registry.supports_structured_output`; adds `model_call_samples.provider_id`/`task_category`/`timed_out`/`used_as_fallback`/`input_tokens`/`output_tokens`/`response_status` |
 | `0017_backfill_default_model_capabilities.sql` | — | M2: backfills accurate capability data (context length, tool/vision/reasoning/structured-output support) for the five M1-seeded default models, mirroring `core/router/capabilityCatalog.ts` |
 | `0018_m3_agents_a2a_memory.sql` | — | M3: adds `agents.last_heartbeat_at`; `tasks.correlation_id`/`attempt` + index; `memory_items.importance`/`approval_status` + index; seeds the `research`/`reviewer` agent rows and refreshes `master`'s `agent_card`; seeds `agent_delegation_edges` for `master→research` and `master→reviewer` only |
+| `0019_m4_mcp_tools.sql` | — | M4: adds `tools.version`/`mcp_metadata`/`required_capabilities`/`default_access`/`health`/`health_detail`/`timeout_ms`/`last_verified_at`/`owner`; adds `agent_tool_grants.permission_level` (`allowed`/`restricted`); adds `tool_invocations.completed_at`/`error_code`/`result_metadata` and extends its status enum with `timeout`/`blocked`; seeds the seven M4.3 built-in tools and `research`'s tool grants (see `11-mcp-tools.md`) |
 
 ## 2. Relationship overview
 
@@ -75,6 +76,17 @@ source kinds be added without a migration.
 hard-code agent relationships" is enforced structurally: the Master Agent's
 delegation options are read from this table at request time, so adding a
 new agent's delegation path is an `INSERT`, not a code change.
+
+**`agent_tool_grants` and `tools` are catalog data (M4), same treatment as
+`agent_delegation_edges`/`agents` — never truncated by
+`test/helpers/testDb.ts`'s `resetTestData()` between test runs.** This was
+a real bug caught during M4 development: the table was originally in the
+per-run truncation list from M0's forward-looking scaffold (when it held
+no seed data yet), and once migration `0019` started seeding real grants,
+every test's `beforeEach` was silently wiping them, causing every
+tool-permission check to fail with no diagnostic beyond "denied." Fixed
+by moving `agent_tool_grants`/`tools` out of the truncation list — mutable
+per-invocation state (`tool_invocations`) still gets truncated normally.
 
 **Memory embeddings use HNSW, filtered by `deleted_at IS NULL`.** Deletes
 are soft (`deleted_at`) so "forget this" is reversible/auditable, and the

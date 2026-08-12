@@ -32,13 +32,19 @@ Common envelope:
 | `GET` | `/conversations` | → `Conversation[]` (paginated) |
 | `POST` | `/conversations` | `{ title? }` → `Conversation` |
 | `GET` | `/conversations/:id/tasks` | → `Task[]` with nested `task_messages` |
-| `POST` | `/conversations/:id/messages` | `{ parts: Part[], providerKeys, preferredProviderId?, preferredModelId?, taskCategory?, routingMode? }` → `Task` (creates a `master` task; state starts `submitted`). Text, image, file, and PDF parts all go through this one endpoint — see §6. |
+| `POST` | `/conversations/:id/messages` | `{ parts: Part[], providerKeys, toolKeys?, preferredProviderId?, preferredModelId?, taskCategory?, routingMode? }` → `Task` (creates a `master` task; state starts `submitted`). Text, image, file, and PDF parts all go through this one endpoint — see §6. |
 | `POST` | `/tasks/:id/cancel` | `{ reason? }` → `204` |
 | `WS` | `/ws/tasks/:id` | Server→client `TaskStreamChunk` frames (see below) |
 
 `providerKeys` is `{ [providerId: string]: string }` — the app includes a
 key **only** for providers it currently has unlocked in its local vault
-and is willing to let this request use. `taskCategory` (one of `chat`,
+and is willing to let this request use. `toolKeys` (M4) is the same shape
+for tool-level credentials — today just `{ brave?: string }` for
+`web_search`'s only configured search provider — travels with the exact
+same non-persistence guarantee as `providerKeys` and is optional: most
+tools (`calculator`, `time_date`, `url_reader`, `file_reader`,
+`pdf_reader`, `generic_http_get`) need no credential at all.
+`taskCategory` (one of `chat`,
 `reasoning`, `research`, `long-context`, `vision`, `tool-calling`,
 `structured-output`, `fast`) tells the AUTO router's capability matrix
 what this message actually needs — omit it and every model qualifies.
@@ -103,6 +109,18 @@ holds no credential to look up.
 | `PATCH` | `/bots/:id` | `{ enabled?, config?, scheduleCron? }` → `Bot` | Future milestone |
 | `POST` | `/bots/:id/run` | → `BotRun` (manual trigger, e.g. "check now") | Future milestone |
 | `GET` | `/bots/:id/findings` | `?since=` → `BotFinding[]` | Future milestone |
+
+### 4.1 Tools (M4)
+
+| Method | Path | Body → Response |
+|---|---|---|
+| `GET` | `/tools` | → `ToolDefinition[]` — the full Tool Registry, including `health`/`enabled`/`timeoutMs`. Read-only in M4; there is no `PATCH /tools/:id` yet (tool health/enablement is managed by the Tool Registry itself, not hand-edited through this API). |
+
+Agents never call this REST route themselves — `GET /tools` is for
+observability (a future Command Center or admin view); an agent's actual
+tool discovery goes through `AgentRuntimeContext.callTool` →
+`core/mcp/mcpHost.ts` in-process, same interface either way
+(`11-mcp-tools.md`).
 
 ## 5. Events / Command Center
 

@@ -10,9 +10,17 @@ import { EventBus } from "./core/events/eventBus.js";
 import { ModelRegistryService } from "./core/registry/modelRegistryService.js";
 import { AgentRegistryService } from "./core/agents/agentRegistryService.js";
 import { MemoryEngineService } from "./core/memory/memoryEngine.js";
+import { ToolRegistryService } from "./core/mcp/toolRegistryService.js";
 import { createResearchAgent } from "./core/agents/research/researchAgent.js";
 import { createReviewerAgent } from "./core/agents/reviewer/reviewerAgent.js";
 import { createMasterAgent } from "./core/agents/master/masterAgent.js";
+import { webSearchTool } from "./core/mcp/tools/webSearchTool.js";
+import { urlReaderTool } from "./core/mcp/tools/urlReaderTool.js";
+import { fileReaderTool } from "./core/mcp/tools/fileReaderTool.js";
+import { pdfReaderTool } from "./core/mcp/tools/pdfReaderTool.js";
+import { calculatorTool } from "./core/mcp/tools/calculatorTool.js";
+import { timeDateTool } from "./core/mcp/tools/timeDateTool.js";
+import { httpGetTool } from "./core/mcp/tools/httpGetTool.js";
 import { getRedisConnection, closeRedisConnection } from "./queue/connection.js";
 import {
   createEventsRetentionQueue,
@@ -48,6 +56,7 @@ async function main(): Promise<void> {
   const modelRegistry = new ModelRegistryService(pool);
   const agentRegistry = new AgentRegistryService(pool);
   const memoryEngine = new MemoryEngineService(pool);
+  const toolRegistry = new ToolRegistryService(pool);
 
   // M3 roster: Master, Research, Reviewer — see docs/architecture/
   // 04-agent-interfaces.md for why the full specialist-agent ecosystem
@@ -58,6 +67,17 @@ async function main(): Promise<void> {
   agentRegistry.register(createResearchAgent());
   agentRegistry.register(createReviewerAgent());
   agentRegistry.register(createMasterAgent({ agentRegistry, memoryEngine }));
+
+  // M4.3 first safe tool set — see docs/architecture/11-mcp-tools.md.
+  // Which agent may actually call which tool is `agent_tool_grants` data
+  // (migration 0019), not this registration order.
+  toolRegistry.register(webSearchTool);
+  toolRegistry.register(urlReaderTool);
+  toolRegistry.register(fileReaderTool);
+  toolRegistry.register(pdfReaderTool);
+  toolRegistry.register(calculatorTool);
+  toolRegistry.register(timeDateTool);
+  toolRegistry.register(httpGetTool);
 
   const eventsRetentionQueue = createEventsRetentionQueue();
   const eventsRetentionWorker = createEventsRetentionWorker(pool);
@@ -75,6 +95,7 @@ async function main(): Promise<void> {
     modelRegistry,
     agentRegistry,
     memoryEngine,
+    toolRegistry,
     logger,
   });
   const server = createServer(app);

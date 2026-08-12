@@ -194,30 +194,34 @@ Cancellation, streaming (`TaskStreamChunk`), and error propagation
   marks that child task `failed` with `agent_did_not_finalize` rather
   than leaving it stuck `working` forever.
 
-## 5. MCP tool layer
+## 5. MCP tool layer — **implemented, M4**
 
 Tools live in `core/mcp`, are registered via `ToolHandler`, and are called
 only through the `ToolRegistry`/host — never directly by an agent. This
 gives three things for free:
-- **Agent-agnostic tools.** The same `web.search` implementation serves
-  `research`, `news-intel`, and `master`.
+- **Agent-agnostic tools.** The same `web_search` implementation would
+  serve any future agent, not just `research` — nothing about the tool
+  itself is Research-specific.
 - **Central risk gating.** `requiresApproval` tools (e.g. anything that
   spends money or executes code) pause at `awaiting_approval` regardless of
   which agent invoked them, enforced by `agent_tool_grants` +
   `evolution_proposals`-style approval, not by each agent remembering to
-  check.
+  check. None of M4's seven built-in tools set `requiresApproval` — see
+  `11-mcp-tools.md` §11.
 - **External MCP servers as tool sources.** `connectServer(url)` lets a
   third-party MCP server (including ones exposed by n8n or future
-  integrations) register tools the same way a built-in tool does.
+  integrations) register tools the same way a built-in tool does — not
+  built in M4 yet; `ToolRegistryService.connectServer` throws a clear,
+  honest "not implemented" error rather than a silent no-op.
 
-**M3 reality:** no MCP host is connected yet — `AgentRuntimeContext.callTool`
-(`core/agents/runtimeContext.ts`) always throws `ToolNotAvailableError`
-today. This is deliberate, tool-ready wiring rather than a stub pretending
-to work: the Research Agent already calls `callTool("web.search", ...)`
-on every task and honestly folds the resulting `ToolNotAvailableError`
-into its `limitations` array instead of fabricating a source, so no
-downstream code changes when the real MCP host lands in M4 — only this
-one `callTool` implementation does.
+**M4 reality:** the MCP host is real (`core/mcp/mcpHost.ts`'s
+`invokeTool()`) — `AgentRuntimeContext.callTool` now actually discovers,
+permission-checks, executes, times out, and durably records every
+invocation. Full detail — the seven built-in tools, the Tool Registry
+schema, permissions, SSRF protection, prompt injection defenses, and the
+Research Agent integration — lives in its own document:
+**`11-mcp-tools.md`**, since this is substantial enough content to not
+cram into this file's margins.
 
 ## 6. Bots are not agents
 

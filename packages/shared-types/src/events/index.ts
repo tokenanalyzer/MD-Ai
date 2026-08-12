@@ -160,8 +160,31 @@ export interface MemoryRetrievedEvent {
   memoryIds: string[];
 }
 
-// ---- tool.* --------------------------------------------------------------
+// ---- tool.* (M4 — MCP execution layer lifecycle) ---------------------------
 
+/** The MCP host found `toolId` in the Tool Registry for this request. */
+export interface ToolDiscoveredEvent {
+  type: "tool.discovered";
+  toolId: string;
+  agentId: string;
+  taskId?: string;
+}
+/** The host has decided to actually execute this tool (post-lookup, pre-permission-check). */
+export interface ToolSelectedEvent {
+  type: "tool.selected";
+  toolId: string;
+  agentId: string;
+  taskId?: string;
+  invocationId: string;
+}
+export interface ToolPermissionCheckedEvent {
+  type: "tool.permission.checked";
+  toolId: string;
+  agentId: string;
+  /** Set only once an invocation row exists (i.e. the check passed) — a denial has no invocation to reference. */
+  invocationId?: string;
+  accessLevel: "allowed" | "restricted" | "denied";
+}
 export interface ToolCalledEvent {
   type: "tool.called";
   toolId: string;
@@ -175,6 +198,27 @@ export interface ToolCompletedEvent {
   invocationId: string;
   status: "succeeded" | "failed" | "denied";
   latencyMs: number;
+}
+export interface ToolFailedEvent {
+  type: "tool.failed";
+  toolId: string;
+  invocationId: string;
+  errorCode: string;
+  latencyMs: number;
+}
+export interface ToolTimeoutEvent {
+  type: "tool.timeout";
+  toolId: string;
+  invocationId: string;
+  timeoutMs: number;
+}
+/** Permission denial or a security guard (SSRF, size limit) refused the call before/during execution. */
+export interface ToolBlockedEvent {
+  type: "tool.blocked";
+  toolId: string;
+  agentId: string;
+  invocationId?: string;
+  reason: string;
 }
 
 // ---- model.* ---------------------------------------------------------------
@@ -245,8 +289,14 @@ export type EventPayload =
   | ReviewCompletedEvent
   | MemoryCreatedEvent
   | MemoryRetrievedEvent
+  | ToolDiscoveredEvent
+  | ToolSelectedEvent
+  | ToolPermissionCheckedEvent
   | ToolCalledEvent
   | ToolCompletedEvent
+  | ToolFailedEvent
+  | ToolTimeoutEvent
+  | ToolBlockedEvent
   | ModelSelectedEvent
   | ModelSwitchedEvent
   | BotStartedEvent

@@ -66,6 +66,13 @@ explicit instruction, this is documented rather than claimed as verified.
    `test/integration/delegation.test.ts`) and the store/screen wiring
    typechecks, but the on-screen rendering timing/behavior is not
    confirmed on-device.
+10. (M4.14) The same status line rendering Research's tool-specific
+    labels — "Searching the web…", "Reading N source(s)…" — during a
+    real tool-assisted research turn. No new mobile code was needed (the
+    M3 infrastructure already renders whatever label arrives), and the
+    backend genuinely emits these exact labels, verified end-to-end over
+    a real WebSocket in `test/integration/researchTools.test.ts`; the
+    on-device rendering itself is unconfirmed, same as item 9.
 
 ## 2. How to actually verify this (for the owner, on a real device)
 
