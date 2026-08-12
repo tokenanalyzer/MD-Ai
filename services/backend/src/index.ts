@@ -22,6 +22,13 @@ import { pdfReaderTool } from "./core/mcp/tools/pdfReaderTool.js";
 import { calculatorTool } from "./core/mcp/tools/calculatorTool.js";
 import { timeDateTool } from "./core/mcp/tools/timeDateTool.js";
 import { httpGetTool } from "./core/mcp/tools/httpGetTool.js";
+import { BotRegistryService } from "./core/bots/botRegistryService.js";
+import { BotEngine } from "./core/bots/botEngine.js";
+import { aiModelReleaseMonitor } from "./core/bots/aiModelReleaseMonitor.js";
+import { newsMonitor } from "./core/bots/newsMonitor.js";
+import { createUserTopicMonitor } from "./core/bots/userTopicMonitor.js";
+import { createSystemHealthMonitor } from "./core/bots/systemHealthMonitor.js";
+import { expoPushSender } from "./core/notifications/expoPushSender.js";
 import { getRedisConnection, closeRedisConnection } from "./queue/connection.js";
 import {
   createEventsRetentionQueue,
@@ -63,6 +70,7 @@ async function main(): Promise<void> {
   const agentRegistry = new AgentRegistryService(pool);
   const memoryEngine = new MemoryEngineService(pool);
   const toolRegistry = new ToolRegistryService(pool);
+  const botRegistry = new BotRegistryService(pool);
 
   // M3 roster: Master, Research, Reviewer — see docs/architecture/
   // 04-agent-interfaces.md for why the full specialist-agent ecosystem
@@ -85,6 +93,28 @@ async function main(): Promise<void> {
   toolRegistry.register(timeDateTool);
   toolRegistry.register(httpGetTool);
 
+  // M5.7-M5.11: exactly four bots, no hardcoded scheduler list — the Bot
+  // Engine only ever dispatches to what's registered here *and* marked
+  // `enabled` in the DB (migration 0020's seed rows). Explicitly NOT
+  // crypto/stock trading bots or exchange execution — see
+  // docs/architecture/12-bot-engine.md §1.
+  botRegistry.register(aiModelReleaseMonitor);
+  botRegistry.register(newsMonitor);
+  botRegistry.register(createUserTopicMonitor(pool));
+  botRegistry.register(createSystemHealthMonitor(pool, redis));
+
+  const botEngine = new BotEngine({
+    pool,
+    eventBus,
+    botRegistry,
+    modelRegistry,
+    agentRegistry,
+    toolRegistry,
+    ownerId: owner.id,
+    notificationSender: expoPushSender,
+  });
+  await botEngine.start();
+
   const eventsRetentionQueue = createEventsRetentionQueue();
   const eventsRetentionWorker = createEventsRetentionWorker(pool);
   await scheduleEventsRetentionRepeatable(eventsRetentionQueue);
@@ -102,6 +132,8 @@ async function main(): Promise<void> {
     agentRegistry,
     memoryEngine,
     toolRegistry,
+    botRegistry,
+    botEngine,
     logger,
   });
   const server = createServer(app);
@@ -114,6 +146,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received, shutting down`);
     server.close();
+    await botEngine.stop();
     await eventsRetentionWorker.close();
     await eventsRetentionQueue.close();
     await healthRollupWorker.close();

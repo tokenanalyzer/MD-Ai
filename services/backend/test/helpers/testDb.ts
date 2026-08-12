@@ -38,11 +38,16 @@ const SEEDED_MODEL_IDS = [
 export async function resetTestData(p: pg.Pool): Promise<void> {
   // agent_tool_grants is seeded catalog data since migration 0019 (M4) —
   // same treatment as agent_delegation_edges/agents/tools, deliberately
-  // NOT truncated here. tool_invocations remains per-run state.
+  // NOT truncated here. tool_invocations remains per-run state. `bots`
+  // (M5) gets the identical treatment: seeded catalog rows (migration
+  // 0020), not truncated — bot_runs/bot_findings/notifications are the
+  // per-run state. user_topics and background_provider_keys are
+  // user-entered config (like provider_configs), truncated fresh per test.
   await p.query(`
     TRUNCATE TABLE
       audit_log, evolution_proposals, automation_runs, automations,
-      tool_invocations, bot_findings, bot_runs,
+      tool_invocations, notifications, bot_findings, bot_runs,
+      user_topics, background_credentials,
       memory_items, events, task_messages, tasks, conversations,
       model_call_samples, provider_default_models, provider_configs,
       device_sessions, owner, app_config
@@ -65,6 +70,14 @@ export async function resetTestData(p: pg.Pool): Promise<void> {
   // Same leakage risk again: the MCP host records real health transitions
   // (healthy/degraded/unavailable) on every tool invocation.
   await p.query(`UPDATE tools SET enabled = true, health = 'unknown', health_detail = NULL, last_verified_at = NULL`);
+
+  // Same leakage risk again: the Bot Engine records real run outcomes
+  // (status/health/last_run_at/failure_count) onto the seeded `bots` rows.
+  await p.query(`
+    UPDATE bots SET
+      enabled = true, status = 'idle', health = 'unknown', health_detail = NULL,
+      last_run_at = NULL, last_successful_run_at = NULL, failure_count = 0
+  `);
 }
 
 export async function closeTestPool(): Promise<void> {

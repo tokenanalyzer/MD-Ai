@@ -7,6 +7,13 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
   MDAI_JWT_SECRET: z.string().min(16, "MDAI_JWT_SECRET must be at least 16 characters"),
   MDAI_PAIRING_CODE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
+  // M5.12a: key-encrypting key for the opt-in background credential vault
+  // (core/security/backgroundKeyVault.ts) — base64-encoded, exactly 32
+  // bytes decoded. Optional at the env-schema level (most deployments never
+  // opt any provider into background use), but every actual encrypt/decrypt
+  // call requires it and fails with a clear, specific error if absent —
+  // see docs/architecture/07-security-model.md §3.4/§12.
+  MDAI_BACKGROUND_KEY_KEK: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type pg from "pg";
-import { pairBodySchema, refreshBodySchema, revokeBodySchema } from "../schemas.js";
+import { pairBodySchema, pushTokenBodySchema, refreshBodySchema, revokeBodySchema } from "../schemas.js";
 import { AppError } from "../errors.js";
 import { authGuard } from "../middleware/authGuard.js";
 import { consumePairingCode } from "../../core/security/pairing.js";
@@ -11,6 +11,7 @@ import {
   findActiveSessionByRefreshHash,
   listActiveSessions,
   revokeSession,
+  updatePushToken,
 } from "../../db/repositories/deviceSessionRepo.js";
 
 export function authRouter(pool: pg.Pool): Router {
@@ -57,6 +58,19 @@ export function authRouter(pool: pg.Pool): Router {
     try {
       const body = revokeBodySchema.parse(req.body);
       await revokeSession(pool, body.deviceSessionId);
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // M5.13: push tokens rotate — the app re-registers on every cold start
+  // (Expo/FCM tokens aren't permanent), so this is a distinct route from
+  // /pair rather than requiring a fresh pairing to update one.
+  router.post("/push-token", authGuard(pool), async (req, res, next) => {
+    try {
+      const body = pushTokenBodySchema.parse(req.body);
+      await updatePushToken(pool, req.deviceSession!.id, body.pushToken);
       res.status(204).send();
     } catch (err) {
       next(err);

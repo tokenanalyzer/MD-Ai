@@ -237,25 +237,77 @@ export interface ModelSwitchedEvent {
   reason: string; // e.g. "provider_error", "rate_limited", "latency_threshold"
 }
 
-// ---- bot.* -----------------------------------------------------------------
+// ---- bot.* (M5.15 — Bot Command Center events, metadata-only) --------------
 
+/** Emitted once at boot when a `BotDefinition` implementation is registered (mirrors `AgentStartedEvent`). */
+export interface BotRegisteredEvent {
+  type: "bot.registered";
+  botId: string;
+}
+/** The bot has become active — engine is about to dispatch a run for it. */
 export interface BotStartedEvent {
   type: "bot.started";
   botId: string;
-  botRunId: string;
 }
-export interface BotStoppedEvent {
-  type: "bot.stopped";
+export interface BotRunStartedEvent {
+  type: "bot.run.started";
   botId: string;
   botRunId: string;
-  status: "succeeded" | "failed";
 }
-export interface BotAlertEvent {
-  type: "bot.alert";
+export interface BotRunCompletedEvent {
+  type: "bot.run.completed";
+  botId: string;
+  botRunId: string;
+  status: "succeeded" | "failed" | "timeout" | "cancelled";
+  durationMs: number;
+  findingsCount: number;
+}
+export interface BotFailedEvent {
+  type: "bot.failed";
+  botId: string;
+  botRunId?: string;
+  errorCode: string;
+  message: string;
+}
+export interface BotPausedEvent {
+  type: "bot.paused";
+  botId: string;
+}
+export interface BotResumedEvent {
+  type: "bot.resumed";
+  botId: string;
+}
+export interface BotFindingCreatedEvent {
+  type: "bot.finding.created";
+  botId: string;
+  botRunId: string;
+  findingId: string;
+  category: string;
+  importance: "low" | "medium" | "high" | "critical";
+}
+/** A repeat detection collapsed into an existing finding (same `(botId, dedupKey)`) instead of creating a new one — M5.5, prevents a 12-hour-visible release from producing 12 notifications. */
+export interface BotFindingDeduplicatedEvent {
+  type: "bot.finding.deduplicated";
   botId: string;
   findingId: string;
-  severity: EventSeverity;
-  routedTaskId?: string;
+  occurrenceCount: number;
+}
+export interface BotFindingEscalatedEvent {
+  type: "bot.finding.escalated";
+  botId: string;
+  findingId: string;
+  routedTaskId: string;
+}
+export interface BotNotificationSentEvent {
+  type: "bot.notification.sent";
+  findingId?: string;
+  notificationId: string;
+}
+export interface BotNotificationFailedEvent {
+  type: "bot.notification.failed";
+  findingId?: string;
+  notificationId: string;
+  error: string;
 }
 
 // ---- automation.* ----------------------------------------------------------
@@ -299,9 +351,18 @@ export type EventPayload =
   | ToolBlockedEvent
   | ModelSelectedEvent
   | ModelSwitchedEvent
+  | BotRegisteredEvent
   | BotStartedEvent
-  | BotStoppedEvent
-  | BotAlertEvent
+  | BotRunStartedEvent
+  | BotRunCompletedEvent
+  | BotFailedEvent
+  | BotPausedEvent
+  | BotResumedEvent
+  | BotFindingCreatedEvent
+  | BotFindingDeduplicatedEvent
+  | BotFindingEscalatedEvent
+  | BotNotificationSentEvent
+  | BotNotificationFailedEvent
   | AutomationTriggeredEvent;
 
 export type EventType = EventPayload["type"];

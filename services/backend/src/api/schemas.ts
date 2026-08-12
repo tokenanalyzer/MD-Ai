@@ -115,3 +115,39 @@ export const searchMemoryBodySchema = z.object({
 export const patchAgentBodySchema = z.object({
   enabled: z.boolean(),
 });
+
+// ---- M5: bots, notifications, user topics, background credentials --------------
+
+export const patchBotBodySchema = z.object({
+  enabled: z.boolean().optional(),
+  paused: z.boolean().optional(),
+});
+
+export const pushTokenBodySchema = z.object({
+  pushToken: z.string().min(1),
+});
+
+const findingImportanceSchema = z.enum(["low", "medium", "high", "critical"]);
+
+export const patchNotificationPreferencesBodySchema = z.object({
+  enabled: z.boolean().optional(),
+  minimumImportance: findingImportanceSchema.optional(),
+  quietHoursStartMinute: z.number().int().min(0).max(1439).nullable().optional(),
+  quietHoursEndMinute: z.number().int().min(0).max(1439).nullable().optional(),
+  quietHoursTimezone: z.string().min(1).optional(),
+  mutedTopics: z.array(z.string()).optional(),
+  mutedBotIds: z.array(z.string()).optional(),
+  mutedCategories: z.array(z.string()).optional(),
+});
+
+export const createUserTopicBodySchema = z.object({
+  topic: z.string().min(1).max(200),
+  frequencyMinutes: z.number().int().positive().optional(),
+  importanceThreshold: findingImportanceSchema.optional(),
+});
+
+export const putBackgroundCredentialBodySchema = z.object({
+  credentialKind: z.enum(["llm_provider", "search_provider"]),
+  credentialId: z.string().min(1),
+  apiKey: z.string().min(1),
+});

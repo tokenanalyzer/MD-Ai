@@ -5,4 +5,5 @@ export * from "./providers/index.js";
 export * from "./events/index.js";
 export * from "./memory/index.js";
 export * from "./bots/index.js";
+export * from "./notifications/index.js";
 export * from "./api/index.js";

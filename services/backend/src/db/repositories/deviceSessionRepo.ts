@@ -55,6 +55,11 @@ export async function touchLastSeen(pool: pg.Pool, id: string): Promise<void> {
   await pool.query("UPDATE device_sessions SET last_seen_at = now() WHERE id = $1", [id]);
 }
 
+/** M5.13: push tokens rotate (Expo/FCM tokens are not permanent) — the app re-registers on every cold start, same "re-report on each success" pattern as `provider_configs.key_last4`. */
+export async function updatePushToken(pool: pg.Pool, id: string, pushToken: string): Promise<void> {
+  await pool.query("UPDATE device_sessions SET push_token = $2 WHERE id = $1", [id, pushToken]);
+}
+
 export async function revokeSession(pool: pg.Pool, id: string): Promise<void> {
   await pool.query("UPDATE device_sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL", [id]);
 }
