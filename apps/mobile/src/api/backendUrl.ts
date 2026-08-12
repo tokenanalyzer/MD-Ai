@@ -1,5 +1,5 @@
-import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
+import { secureStoreCompat as store } from "../platform/secureStoreCompat";
 
 const OVERRIDE_KEY = "mdai.backendUrl";
 
@@ -22,13 +22,13 @@ let cached: string | undefined;
 /** The owner's own Oracle Cloud backend URL — user-configurable from Settings, not hardcoded for a real deployment. */
 export async function getBackendUrl(): Promise<string> {
   if (cached) return cached;
-  const stored = await SecureStore.getItemAsync(OVERRIDE_KEY);
+  const stored = await store.getItemAsync(OVERRIDE_KEY);
   cached = stored ?? defaultBackendUrl();
   return cached;
 }
 
 export async function setBackendUrl(url: string): Promise<void> {
-  await SecureStore.setItemAsync(OVERRIDE_KEY, url);
+  await store.setItemAsync(OVERRIDE_KEY, url);
   cached = url;
 }
 

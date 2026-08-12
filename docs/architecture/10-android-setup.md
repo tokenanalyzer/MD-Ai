@@ -68,6 +68,22 @@ EXPO_PUBLIC_MDAI_BACKEND_URL=http://<your-LAN-IP>:8080 npx expo start --dev-clie
 Scan the QR code using the **dev-client app** you installed in step C
 (not the phone's camera app, not Expo Go).
 
+### E2. Web preview — inspect the UI without a phone or a build (M6)
+No Android build, no dev-client, no device needed to look at Command
+Center/Chat/Agent/Model/Memory/Tools UI structure and iterate on it:
+```sh
+cd apps/mobile
+EXPO_PUBLIC_MDAI_BACKEND_URL=http://localhost:8080 pnpm web
+```
+Opens in your desktop browser via `react-native-web`. Real backend
+required (same auth-guarded REST/WS contracts as the phone app — this is
+not a mocked/demo mode), so start the backend first (§G, step 1). Push
+notifications and the Android Keystore-backed secure vault degrade to
+web-safe fallbacks or no-ops in this mode — use a real device (§A-§H) to
+verify those specifically. Everything else (Command Center, Chat, Agent/
+Model/Memory/Tools Centers, Settings) is the same code path as the native
+app.
+
 ### F. Install the APK on Android
 - Local build (§C.1): `expo run:android` installs it automatically over
   USB.

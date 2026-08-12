@@ -7,10 +7,14 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0a0d0c",
-    "platforms": ["android"],
+    "platforms": ["android", "web"],
     "android": {
       "package": "ai.mdai.app",
       "backgroundColor": "#0a0d0c"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
     },
     "plugins": ["expo-router", "expo-secure-store", "expo-dev-client", "expo-notifications"],
     "extra": {

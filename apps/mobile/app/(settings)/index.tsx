@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, Alert } from 
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { Panel } from "../../src/components/Panel";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { getBackendUrl, setBackendUrl, wsUrlFrom } from "../../src/api/backendUrl";
 import { useSessionStore } from "../../src/state/sessionStore";
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.section}>
+        <Panel style={styles.section}>
           <Text style={styles.sectionTitle}>Backend connection</Text>
           <Text style={styles.sectionSubtitle}>
             Currently: {currentUrl || "…"}{"\n"}WS gateway: {currentUrl ? wsUrlFrom(currentUrl) : "…"}
@@ -85,15 +86,15 @@ export default function SettingsScreen() {
             On a physical phone, "localhost" means the phone itself — use your dev machine's LAN IP (e.g.
             http://192.168.x.x:8080) or your Oracle backend's public URL. See docs/architecture/10-android-setup.md.
           </Text>
-        </View>
+        </Panel>
 
-        <View style={styles.section}>
+        <Panel style={styles.section}>
           <Text style={styles.sectionTitle}>Push notifications</Text>
           <PrimaryButton label="Register this device" variant="ghost" onPress={() => void handleTestPush()} />
           {pushStatus && <Text style={styles.hint}>{pushStatus}</Text>}
-        </View>
+        </Panel>
 
-        <View style={styles.section}>
+        <Panel style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <PrimaryButton
             label="Sign out"
@@ -105,7 +106,7 @@ export default function SettingsScreen() {
               ])
             }
           />
-        </View>
+        </Panel>
 
         <Text style={styles.version}>MD AI · v{Constants.expoConfig?.version ?? "0.0.0"}</Text>
       </ScrollView>
@@ -119,14 +120,7 @@ const styles = StyleSheet.create({
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
   content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  section: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
+  section: { gap: spacing.md },
   sectionTitle: { color: colors.textPrimary, fontSize: typography.fontSize.md, fontWeight: "600" },
   sectionSubtitle: { color: colors.textSecondary, fontSize: typography.fontSize.xs },
   input: {

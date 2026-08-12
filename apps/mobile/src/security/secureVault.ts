@@ -1,10 +1,11 @@
-import * as SecureStore from "expo-secure-store";
+import { secureStoreCompat as store } from "../platform/secureStoreCompat";
 
 /**
  * The authoritative provider-key store (docs/architecture/07-security-model.md
- * §3). `expo-secure-store` is backed by the Android Keystore — this is the
- * one and only place a provider API key persists. The backend never gets a
- * durable copy; keys are read from here and attached to individual
+ * §3). Backed by the Android Keystore on the real app (see
+ * platform/secureStoreCompat.ts for the web-preview fallback) — this is
+ * the one and only place a provider API key persists. The backend never
+ * gets a durable copy; keys are read from here and attached to individual
  * requests at call time (see src/api/client.ts, src/realtime/chatSocket.ts).
  */
 
@@ -16,7 +17,7 @@ function keyStorageId(providerId: string): string {
 }
 
 async function readIndex(): Promise<string[]> {
-  const raw = await SecureStore.getItemAsync(INDEX_KEY);
+  const raw = await store.getItemAsync(INDEX_KEY);
   if (!raw) return [];
   try {
     return JSON.parse(raw) as string[];
@@ -26,11 +27,11 @@ async function readIndex(): Promise<string[]> {
 }
 
 async function writeIndex(providerIds: string[]): Promise<void> {
-  await SecureStore.setItemAsync(INDEX_KEY, JSON.stringify(providerIds));
+  await store.setItemAsync(INDEX_KEY, JSON.stringify(providerIds));
 }
 
 export async function setProviderKey(providerId: string, apiKey: string): Promise<void> {
-  await SecureStore.setItemAsync(keyStorageId(providerId), apiKey);
+  await store.setItemAsync(keyStorageId(providerId), apiKey);
   const index = await readIndex();
   if (!index.includes(providerId)) {
     await writeIndex([...index, providerId]);
@@ -38,11 +39,11 @@ export async function setProviderKey(providerId: string, apiKey: string): Promis
 }
 
 export async function getProviderKey(providerId: string): Promise<string | null> {
-  return SecureStore.getItemAsync(keyStorageId(providerId));
+  return store.getItemAsync(keyStorageId(providerId));
 }
 
 export async function deleteProviderKey(providerId: string): Promise<void> {
-  await SecureStore.deleteItemAsync(keyStorageId(providerId));
+  await store.deleteItemAsync(keyStorageId(providerId));
   const index = await readIndex();
   await writeIndex(index.filter((id) => id !== providerId));
 }

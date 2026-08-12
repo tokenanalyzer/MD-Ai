@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import * as SecureStore from "expo-secure-store";
 import { pairDevice, refreshAccessToken, type PairResponse } from "../api/client";
+import { secureStoreCompat as store } from "../platform/secureStoreCompat";
 
 const ACCESS_TOKEN_KEY = "mdai.session.accessToken";
 const REFRESH_TOKEN_KEY = "mdai.session.refreshToken";
@@ -17,8 +17,8 @@ interface SessionState {
 
 async function persistTokens(accessToken: string, refreshToken: string): Promise<void> {
   await Promise.all([
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
+    store.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
+    store.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
   ]);
 }
 
@@ -35,8 +35,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   hydrate: async () => {
     const [accessToken, refreshToken] = await Promise.all([
-      SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
-      SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
+      store.getItemAsync(ACCESS_TOKEN_KEY),
+      store.getItemAsync(REFRESH_TOKEN_KEY),
     ]);
     set({ accessToken, refreshToken, hydrated: true });
   },
@@ -52,7 +52,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (!refreshToken) return false;
     try {
       const res = await refreshAccessToken(refreshToken);
-      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, res.accessToken);
+      await store.setItemAsync(ACCESS_TOKEN_KEY, res.accessToken);
       set({ accessToken: res.accessToken });
       return true;
     } catch {
@@ -63,7 +63,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   signOut: async () => {
-    await Promise.all([SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY), SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY)]);
+    await Promise.all([store.deleteItemAsync(ACCESS_TOKEN_KEY), store.deleteItemAsync(REFRESH_TOKEN_KEY)]);
     set({ accessToken: null, refreshToken: null });
   },
 }));
