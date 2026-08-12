@@ -20,8 +20,8 @@ const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
 const eventBus = new EventBus(pool);
-const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine } = buildTestAgentRegistry(pool);
-const app = createApp({ pool, redis, queues: [], eventBus, modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, logger });
+const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus, modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine, logger });
 
 let server: Server;
 let wsBaseUrl: string;

@@ -1,7 +1,8 @@
 import type pg from "pg";
 import type { EncryptedCredential } from "../../core/security/backgroundKeyVault.js";
 
-export type BackgroundCredentialKind = "llm_provider" | "search_provider";
+/** M10: `automation_webhook` reuses this same envelope-encrypted vault to store a per-automation webhook-signing secret — see `core/automations/webhookSignature.ts`. */
+export type BackgroundCredentialKind = "llm_provider" | "search_provider" | "automation_webhook";
 
 export interface BackgroundCredentialRow {
   credential_kind: BackgroundCredentialKind;

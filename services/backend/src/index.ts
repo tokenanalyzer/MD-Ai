@@ -35,6 +35,7 @@ import { liquidityMonitor } from "./core/bots/liquidityMonitor.js";
 import { volumeAnomalyMonitor } from "./core/bots/volumeAnomalyMonitor.js";
 import { socialTrendMonitor } from "./core/bots/socialTrendMonitor.js";
 import { businessOpportunityMonitor } from "./core/bots/businessOpportunityMonitor.js";
+import { AutomationEngine } from "./core/automations/automationEngine.js";
 import { expoPushSender } from "./core/notifications/expoPushSender.js";
 import { getRedisConnection, closeRedisConnection } from "./queue/connection.js";
 import {
@@ -116,6 +117,20 @@ async function main(): Promise<void> {
   toolRegistry.register(timeDateTool);
   toolRegistry.register(httpGetTool);
 
+  // M10: optional external MCP tool sources (OpenClaw is the first real
+  // candidate — see core/mcp/toolRegistryService.ts's connectServer).
+  // Never blocks or crashes boot: an unreachable/misconfigured server is
+  // logged and skipped, same "optional integration point" posture as n8n.
+  const externalMcpServers = env.MDAI_EXTERNAL_MCP_SERVERS?.split(",").map((u) => u.trim()).filter(Boolean) ?? [];
+  for (const serverUrl of externalMcpServers) {
+    try {
+      const connected = await toolRegistry.connectServer(serverUrl);
+      logger.info({ serverUrl, toolCount: connected.length }, "connected external MCP server");
+    } catch (err) {
+      logger.warn({ serverUrl, err }, "failed to connect external MCP server — continuing without it");
+    }
+  }
+
   // M5.7-M5.11: exactly four bots, no hardcoded scheduler list — the Bot
   // Engine only ever dispatches to what's registered here *and* marked
   // `enabled` in the DB (migration 0020's seed rows). Explicitly NOT
@@ -146,6 +161,18 @@ async function main(): Promise<void> {
   });
   await botEngine.start();
 
+  // M10: n8n/agent-task/notification automations — see core/automations/automationEngine.ts.
+  const automationEngine = new AutomationEngine({
+    pool,
+    eventBus,
+    modelRegistry,
+    agentRegistry,
+    toolRegistry,
+    ownerId: owner.id,
+    notificationSender: expoPushSender,
+  });
+  await automationEngine.start();
+
   const eventsRetentionQueue = createEventsRetentionQueue();
   const eventsRetentionWorker = createEventsRetentionWorker(pool);
   await scheduleEventsRetentionRepeatable(eventsRetentionQueue);
@@ -162,13 +189,18 @@ async function main(): Promise<void> {
   // M6: the Bot Engine's own queue joins /health's telemetry (bot-engine
   // job counts weren't visible there before this milestone).
   const botEngineQueue = botEngine.getQueue();
+  const automationEngineQueue = automationEngine.getQueue();
+
+  const baseQueues = [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue];
+  const queues = [botEngineQueue, automationEngineQueue].reduce(
+    (acc, q) => (q ? [...acc, q] : acc),
+    baseQueues,
+  );
 
   const app = createApp({
     pool,
     redis,
-    queues: botEngineQueue
-      ? [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue, botEngineQueue]
-      : [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue],
+    queues,
     eventBus,
     modelRegistry,
     agentRegistry,
@@ -176,6 +208,7 @@ async function main(): Promise<void> {
     toolRegistry,
     botRegistry,
     botEngine,
+    automationEngine,
     logger,
   });
   const server = createServer(app);
@@ -190,6 +223,7 @@ async function main(): Promise<void> {
     logger.info(`${signal} received, shutting down`);
     server.close();
     await botEngine.stop();
+    await automationEngine.stop();
     await eventsRetentionWorker.close();
     await eventsRetentionQueue.close();
     await healthRollupWorker.close();

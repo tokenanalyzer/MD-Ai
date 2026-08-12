@@ -29,6 +29,7 @@ import { liquidityMonitor } from "../../src/core/bots/liquidityMonitor.js";
 import { volumeAnomalyMonitor } from "../../src/core/bots/volumeAnomalyMonitor.js";
 import { socialTrendMonitor } from "../../src/core/bots/socialTrendMonitor.js";
 import { businessOpportunityMonitor } from "../../src/core/bots/businessOpportunityMonitor.js";
+import { AutomationEngine } from "../../src/core/automations/automationEngine.js";
 
 const noopNotificationSender: NotificationSender = {
   async send() {
@@ -36,7 +37,7 @@ const noopNotificationSender: NotificationSender = {
   },
 };
 
-/** Mirrors src/index.ts's boot-time agent/tool/bot registration, for tests that need a real `createApp` deps object. The returned `BotEngine` is NOT started (`.start()` is never called) — most tests never touch bots and starting it would schedule real BullMQ repeatable jobs against the shared test Redis instance; bot-specific tests call `.start()`/`.runNow()` themselves. */
+/** Mirrors src/index.ts's boot-time agent/tool/bot registration, for tests that need a real `createApp` deps object. The returned `BotEngine`/`AutomationEngine` are NOT started (`.start()` is never called) — most tests never touch bots/automations and starting either would schedule real BullMQ repeatable jobs against the shared test Redis instance; bot/automation-specific tests call `.start()`/`.runNow()` themselves. */
 export function buildTestAgentRegistry(
   pool: pg.Pool,
   redis?: Redis,
@@ -46,6 +47,7 @@ export function buildTestAgentRegistry(
   toolRegistry: ToolRegistryService;
   botRegistry: BotRegistryService;
   botEngine: BotEngine;
+  automationEngine: AutomationEngine;
 } {
   const agentRegistry = new AgentRegistryService(pool);
   const memoryEngine = new MemoryEngineService(pool);
@@ -86,5 +88,15 @@ export function buildTestAgentRegistry(
     notificationSender: noopNotificationSender,
   });
 
-  return { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine };
+  const automationEngine = new AutomationEngine({
+    pool,
+    eventBus: new EventBus(pool),
+    modelRegistry: new ModelRegistryService(pool),
+    agentRegistry,
+    toolRegistry,
+    ownerId: "",
+    notificationSender: noopNotificationSender,
+  });
+
+  return { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine };
 }

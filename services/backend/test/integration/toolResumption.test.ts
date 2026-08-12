@@ -168,8 +168,8 @@ describe("resumeApprovedToolInvocation (M9) — real task/tool resumption", () =
 describe("POST /tools/approvals/:id/decide (M9) — end-to-end resumption through the REST surface", () => {
   const logger = pino({ level: "silent" });
   const modelRegistry = new ModelRegistryService(pool);
-  const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine } = buildTestAgentRegistry(pool);
-  const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, logger });
+  const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine } = buildTestAgentRegistry(pool);
+  const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine, logger });
 
   async function pairedToken(): Promise<string> {
     await ensureOwner(pool, "Test Owner");

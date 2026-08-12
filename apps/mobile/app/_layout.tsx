@@ -4,9 +4,17 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { configureClientCore } from "@mdai/client-core";
 import { colors } from "../src/theme/tokens";
 import { useSessionStore } from "../src/state/sessionStore";
 import { registerForPushNotificationsAsync } from "../src/notifications/registerPushToken";
+import { secureStoreCompat } from "../src/platform/secureStoreCompat";
+import { getBackendUrl } from "../src/api/backendUrl";
+
+// M10 PC-client foundation: wire the Expo app's real Keystore-backed vault
+// and backend-URL resolver into @mdai/client-core before any store/api
+// call in that package runs. Must happen before the first render below.
+configureClientCore({ keyValueStore: secureStoreCompat, getBackendUrl });
 
 export default function RootLayout() {
   const hydrate = useSessionStore((s) => s.hydrate);

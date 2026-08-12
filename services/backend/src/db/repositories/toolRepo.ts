@@ -29,6 +29,73 @@ export async function listTools(pool: pg.Pool): Promise<ToolRow[]> {
   return rows;
 }
 
+export interface UpsertToolInput {
+  id: string;
+  displayName: string;
+  description: string;
+  version?: string;
+  inputSchema: JsonSchema;
+  outputSchema: JsonSchema;
+  source: "builtin" | "mcp_server";
+  mcpServerUrl?: string;
+  mcpMetadata?: Record<string, unknown>;
+  requiredCapabilities?: string[];
+  riskLevel: ToolRiskLevel;
+  requiresApproval: boolean;
+  defaultAccess: ToolAccessLevel;
+  timeoutMs: number;
+  owner: string;
+}
+
+/**
+ * M10: the write side `list()`/`get()` needed for a *dynamically*
+ * registered tool — every M4 built-in tool's row instead arrived via
+ * seed migration `0019`, since none of them are discovered at runtime.
+ * `connectServer()` calls this once per tool an external MCP server
+ * advertises. `ON CONFLICT` refreshes descriptive metadata only — never
+ * `risk_level`/`requires_approval`/`default_access`/`enabled`, so a
+ * server re-describing its own tool can't silently loosen a policy an
+ * owner (or Guardian's default posture) already set.
+ */
+export async function upsertTool(pool: pg.Pool, input: UpsertToolInput): Promise<ToolRow> {
+  const { rows } = await pool.query<ToolRow>(
+    `INSERT INTO tools (
+        id, display_name, description, version, input_schema, output_schema,
+        source, mcp_server_url, mcp_metadata, required_capabilities,
+        risk_level, requires_approval, default_access, timeout_ms, owner
+     ) VALUES ($1,$2,$3,COALESCE($4,'0.1.0'),$5,$6,$7,$8,COALESCE($9,'{}'::jsonb),COALESCE($10,'{}'::text[]),$11,$12,$13,$14,$15)
+     ON CONFLICT (id) DO UPDATE SET
+        display_name = EXCLUDED.display_name,
+        description = EXCLUDED.description,
+        version = EXCLUDED.version,
+        input_schema = EXCLUDED.input_schema,
+        output_schema = EXCLUDED.output_schema,
+        mcp_metadata = EXCLUDED.mcp_metadata,
+        required_capabilities = EXCLUDED.required_capabilities
+     RETURNING *`,
+    [
+      input.id,
+      input.displayName,
+      input.description,
+      input.version ?? null,
+      input.inputSchema,
+      input.outputSchema,
+      input.source,
+      input.mcpServerUrl ?? null,
+      input.mcpMetadata ?? null,
+      input.requiredCapabilities ?? null,
+      input.riskLevel,
+      input.requiresApproval,
+      input.defaultAccess,
+      input.timeoutMs,
+      input.owner,
+    ],
+  );
+  const row = rows[0];
+  if (!row) throw new Error(`Failed to upsert tool ${input.id}`);
+  return row;
+}
+
 export async function getTool(pool: pg.Pool, id: string): Promise<ToolRow | undefined> {
   const { rows } = await pool.query<ToolRow>("SELECT * FROM tools WHERE id = $1", [id]);
   return rows[0];

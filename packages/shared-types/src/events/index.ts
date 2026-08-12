@@ -325,6 +325,22 @@ export interface AutomationTriggeredEvent {
   automationRunId: string;
   triggerType: "schedule" | "event" | "webhook" | "manual";
 }
+/** M10: mirrors `bot.run.completed` — the terminal state of a single automation_runs row, whatever it was. */
+export interface AutomationRunCompletedEvent {
+  type: "automation.run.completed";
+  automationId: string;
+  automationRunId: string;
+  status: "succeeded" | "failed" | "timeout";
+  durationMs: number;
+}
+/** M10: mirrors `bot.failed` — a real failure/timeout worth surfacing at `warn`/`error` severity, distinct from the neutral `automation.run.completed`. */
+export interface AutomationFailedEvent {
+  type: "automation.failed";
+  automationId: string;
+  automationRunId: string;
+  errorCode: string;
+  message: string;
+}
 
 // ---- evolution.* (M9 — Evolution Engine sweeps + proposal lifecycle) ------
 
@@ -419,6 +435,8 @@ export type EventPayload =
   | EvolutionProposalCreatedEvent
   | EvolutionProposalAppliedEvent
   | EvolutionProposalApprovedEvent
-  | EvolutionProposalRejectedEvent;
+  | EvolutionProposalRejectedEvent
+  | AutomationRunCompletedEvent
+  | AutomationFailedEvent;
 
 export type EventType = EventPayload["type"];

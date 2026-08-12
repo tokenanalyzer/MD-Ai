@@ -151,17 +151,31 @@ GitHub Actions pipeline (`.github/workflows/`, added in Phase 7):
 5. On merge to main: push image to GHCR, deploy step SSHes to the Oracle
    instance and runs `docker compose pull && docker compose up -d`.
 
-## 7. Integration points (not required for first milestone)
+## 7. Integration points (implemented M10, both remain optional)
 
 - **n8n**: `infra/n8n` documents running n8n as an optional compose
-  profile; MD AI's automation layer calls out to n8n workflows via
-  `automations.action_type = 'n8n_workflow'`, and n8n can call back into MD
-  AI via the signed `/webhooks/automations/:slug` endpoint. Neither side is
-  required for the other to function.
-- **OpenClaw**: reserved as an `action_type` / tool-source addition in the
-  MCP layer once introduced — the `tools.source = 'mcp_server'` mechanism
-  already accommodates an external action-execution server without a new
-  concept; OpenClaw is simply the first one connected. Not part of M1–M8.
+  profile (`--profile automation`, not started by a plain `docker compose
+  up`); MD AI's automation layer (`core/automations/`) calls out to n8n
+  workflows via `automations.action_type = 'n8n_workflow'`, and n8n can
+  call back into MD AI via the signed `/webhooks/automations/:slug`
+  endpoint (HMAC-SHA256, `core/automations/webhookSignature.ts`). Neither
+  side is required for the other to function. Both directions go through
+  the same `safeFetch` SSRF policy as every other outbound call in this
+  codebase (HTTPS-only) — see `infra/n8n/README.md` for what that means
+  for a locally-run n8n instance.
+- **OpenClaw**: connects through the `tools.source = 'mcp_server'`
+  mechanism — `ToolRegistryService.connectServer(url)`
+  (`core/mcp/toolRegistryService.ts`) is a real, working client for the
+  standard MCP JSON-RPC `tools/list`/`tools/call` protocol, not an
+  OpenClaw-specific integration; OpenClaw is simply the first server this
+  connects to once a real endpoint exists. Configured via
+  `MDAI_EXTERNAL_MCP_SERVERS` (comma-separated URLs), connected at boot,
+  never required. Every tool an external server advertises is persisted
+  as a `tools` row with conservative defaults (`riskLevel: "high"`,
+  `requiresApproval: true`) and zero `agent_tool_grants` — connecting a
+  server makes its tools *discoverable*, never *callable*, until an owner
+  explicitly grants a specific agent access, and every call still goes
+  through Guardian's M8 approval gate like any other tool.
 
 ## 8. Backups
 

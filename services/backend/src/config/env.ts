@@ -14,6 +14,11 @@ const envSchema = z.object({
   // call requires it and fails with a clear, specific error if absent —
   // see docs/architecture/07-security-model.md §3.4/§12.
   MDAI_BACKGROUND_KEY_KEK: z.string().optional(),
+  // M10: comma-separated external MCP server URLs to connect at boot (see
+  // core/mcp/toolRegistryService.ts's connectServer) — optional, same
+  // "the app is fully usable without it" posture as n8n (09-roadmap.md
+  // M10). OpenClaw is the first real candidate, not a hardcoded default.
+  MDAI_EXTERNAL_MCP_SERVERS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

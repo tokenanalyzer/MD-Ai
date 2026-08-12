@@ -160,3 +160,23 @@ export const putBackgroundCredentialBodySchema = z.object({
   credentialId: z.string().min(1),
   apiKey: z.string().min(1),
 });
+
+// ---- M10: automations --------------------------------------------------
+
+export const createAutomationBodySchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  triggerType: z.enum(["schedule", "event", "webhook", "manual"]),
+  triggerConfig: z.record(z.string(), z.unknown()).optional(),
+  actionType: z.enum(["agent_task", "n8n_workflow", "notification"]),
+  actionConfig: z.record(z.string(), z.unknown()).optional(),
+  timeoutMs: z.number().int().positive().max(300_000).optional(),
+});
+
+export const patchAutomationBodySchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).optional(),
+  triggerConfig: z.record(z.string(), z.unknown()).optional(),
+  actionConfig: z.record(z.string(), z.unknown()).optional(),
+  enabled: z.boolean().optional(),
+});

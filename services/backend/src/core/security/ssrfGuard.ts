@@ -127,6 +127,10 @@ export interface SafeFetchOptions {
   /** Prefix-matched against the response's content-type, e.g. ["text/", "application/json"]. Omit to accept any content-type. */
   allowedContentTypePrefixes?: string[];
   headers?: Record<string, string>;
+  /** Defaults to "GET". M10: outbound n8n-webhook and MCP JSON-RPC calls need POST — the same HTTPS-only/private-IP/DNS-rebinding checks below apply regardless of method, so adding POST support here never weakens what M4/M5 already enforce for every other caller. */
+  method?: "GET" | "POST";
+  /** Sent as-is on every hop (including a followed redirect) when `method` is "POST". */
+  body?: string;
 }
 
 interface SafeFetchStreamResult {
@@ -151,6 +155,8 @@ async function safeFetchStream(rawUrl: string, opts: SafeFetchOptions): Promise<
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const validated = await assertSafeUrl(currentUrl);
     const res = await fetch(validated, {
+      method: opts.method ?? "GET",
+      body: opts.method === "POST" ? opts.body : undefined,
       redirect: "manual",
       signal: opts.signal,
       headers: { "user-agent": "MD-AI-Agent/1.0 (+tool: safeFetch)", ...opts.headers },

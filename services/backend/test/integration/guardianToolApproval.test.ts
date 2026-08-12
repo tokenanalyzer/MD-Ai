@@ -100,8 +100,8 @@ describe("Guardian's tool-approval gate in mcpHost.invokeTool (M8.3)", () => {
 describe("Tool-approvals REST surface (M8.3)", () => {
   const logger = pino({ level: "silent" });
   const modelRegistry = new ModelRegistryService(pool);
-  const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine } = buildTestAgentRegistry(pool);
-  const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, logger });
+  const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine } = buildTestAgentRegistry(pool);
+  const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine, logger });
 
   async function pairedToken(): Promise<string> {
     await ensureOwner(pool, "Test Owner");

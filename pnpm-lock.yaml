@@ -20,6 +20,9 @@ importers:
       '@babel/runtime':
         specifier: ^7.29.7
         version: 7.29.7
+      '@mdai/client-core':
+        specifier: workspace:*
+        version: link:../../packages/client-core
       '@mdai/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -111,6 +114,19 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(lightningcss@1.27.0)(terser@5.49.2)
+
+  packages/client-core:
+    dependencies:
+      '@mdai/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.14(@types/react@18.3.31)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
 
   packages/shared-types:
     devDependencies:

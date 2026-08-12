@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.29.7",
+    "@mdai/client-core": "workspace:*",
     "@mdai/shared-types": "workspace:*",
     "@react-three/fiber": "^8.18.0",
     "expo": "~52.0.0",

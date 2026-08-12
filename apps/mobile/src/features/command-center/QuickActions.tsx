@@ -43,7 +43,8 @@ export function QuickActions() {
     { key: "models", label: "Models", onPress: () => router.push("/(models)") },
     { key: "memory", label: "Memory", onPress: () => router.push("/(memory)") },
     { key: "tools", label: "Tools", onPress: () => router.push("/(tools)") },
-    { key: "automations", label: "Automations", onPress: () => router.push("/(bots)") },
+    { key: "bots", label: "Bot Fleet", onPress: () => router.push("/(bots)") },
+    { key: "automations", label: "Automations", onPress: () => router.push("/(automations)") },
     { key: "approvals", label: "Approvals", onPress: () => router.push("/(evolution)") },
   ];
 

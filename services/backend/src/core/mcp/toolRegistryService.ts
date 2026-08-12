@@ -1,6 +1,19 @@
 import type pg from "pg";
 import type { ToolAccessLevel, ToolDefinition, ToolHandler, ToolRegistry } from "@mdai/shared-types";
-import { checkToolPermission, getTool, listTools, type ToolRow } from "../../db/repositories/toolRepo.js";
+import { checkToolPermission, getTool, listTools, upsertTool, type ToolRow } from "../../db/repositories/toolRepo.js";
+import { callMcpServerTool, listMcpServerTools } from "./mcpClient.js";
+
+/** A stable, filesystem/id-safe fragment derived from an MCP server URL, so the same server always produces the same tool ids across reconnects. */
+function slugifyServerUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+  } catch {
+    return url.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  }
+}
+
+const MCP_TOOL_CALL_TIMEOUT_MS = 30_000;
 
 function toDefinition(row: ToolRow): ToolDefinition {
   return {
@@ -54,12 +67,68 @@ export class ToolRegistryService implements ToolRegistry {
     this.implementations.set(handler.definition.id, handler);
   }
 
+  /**
+   * M10: real external MCP server connection — the mechanism
+   * `docs/architecture/08-deployment-architecture.md` names for OpenClaw
+   * ("the `tools.source = 'mcp_server'` mechanism already accommodates an
+   * external action-execution server without a new concept"). Fetches the
+   * server's own `tools/list`, persists each as a real `tools` row
+   * (`upsertTool` — so `list()`/`get()`, and therefore `mcpHost.
+   * invokeTool`, see it exactly like a built-in tool), and registers an
+   * `invoke()` implementation that calls the server's `tools/call`.
+   *
+   * Deliberately conservative defaults an owner must explicitly loosen:
+   * `riskLevel: "high"`, `requiresApproval: true` (Guardian's M8 gate
+   * applies to every call, unmodified), and no `agent_tool_grants` row is
+   * ever created here — "absence is denial" (M4.9) means connecting a
+   * server makes its tools *discoverable*, never *callable*, until an
+   * owner grants a specific agent access. This is what "treat it as a
+   * tool source, not as an unrestricted agent" and "never bypass existing
+   * security controls" mean structurally, not just as a stated intent.
+   */
   async connectServer(url: string): Promise<ToolDefinition[]> {
-    // Honest scope boundary, not a silent no-op: M4 builds the built-in
-    // tool set only (M4.3 explicitly excludes unrestricted external
-    // integrations). External MCP server connection is real, planned
-    // wiring for a later milestone — see docs/architecture/04-agent-interfaces.md §5.
-    throw new Error(`connectServer: external MCP server support is not implemented yet (refused connecting to ${url})`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), MCP_TOOL_CALL_TIMEOUT_MS);
+    let descriptors;
+    try {
+      descriptors = await listMcpServerTools(url, controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const serverSlug = slugifyServerUrl(url);
+    const definitions: ToolDefinition[] = [];
+
+    for (const descriptor of descriptors) {
+      const id = `mcp:${serverSlug}:${descriptor.name}`;
+      const row = await upsertTool(this.pool, {
+        id,
+        displayName: descriptor.name,
+        description: descriptor.description ?? `Tool "${descriptor.name}" from external MCP server ${url}`,
+        inputSchema: descriptor.inputSchema ?? {},
+        outputSchema: {},
+        source: "mcp_server",
+        mcpServerUrl: url,
+        mcpMetadata: { protocol: "mcp-jsonrpc-2.0", remoteName: descriptor.name },
+        riskLevel: "high",
+        requiresApproval: true,
+        defaultAccess: "restricted",
+        timeoutMs: MCP_TOOL_CALL_TIMEOUT_MS,
+        owner: "mcp_server",
+      });
+      const definition = toDefinition(row);
+      definitions.push(definition);
+
+      this.register({
+        definition,
+        async invoke(input, ctx) {
+          const result = await callMcpServerTool(url, descriptor.name, input, ctx.signal);
+          return { text: result.text, isError: result.isError, raw: result.raw };
+        },
+      });
+    }
+
+    return definitions;
   }
 
   async checkPermission(agentId: string, toolId: string): Promise<ToolAccessLevel | null> {
