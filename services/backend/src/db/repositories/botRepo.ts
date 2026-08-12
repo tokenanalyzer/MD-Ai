@@ -23,6 +23,33 @@ export interface BotRow {
   owner: string;
 }
 
+export async function createBot(
+  pool: pg.Pool,
+  input: {
+    id: string;
+    displayName: string;
+    description: string;
+    scheduleCron: string;
+    category?: BotCategory;
+    capabilities?: string[];
+    timeoutMs?: number;
+    config?: Record<string, unknown>;
+  },
+): Promise<BotRow> {
+  const { rows } = await pool.query<BotRow>(
+    `INSERT INTO bots (id, display_name, description, schedule_cron, category, capabilities, timeout_ms, config)
+     VALUES ($1, $2, $3, $4, COALESCE($5::text, 'general'), COALESCE($6::text[], '{}'::text[]), COALESCE($7::int, 30000), COALESCE($8::jsonb, '{}'::jsonb))
+     ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, description = EXCLUDED.description,
+       schedule_cron = EXCLUDED.schedule_cron, category = EXCLUDED.category, capabilities = EXCLUDED.capabilities,
+       timeout_ms = EXCLUDED.timeout_ms, config = EXCLUDED.config, updated_at = now()
+     RETURNING *`,
+    [input.id, input.displayName, input.description, input.scheduleCron, input.category ?? null, input.capabilities ?? null, input.timeoutMs ?? null, input.config ?? null],
+  );
+  const row = rows[0];
+  if (!row) throw new Error("Failed to create bot");
+  return row;
+}
+
 export async function listBots(pool: pg.Pool): Promise<BotRow[]> {
   const { rows } = await pool.query<BotRow>("SELECT * FROM bots ORDER BY id");
   return rows;

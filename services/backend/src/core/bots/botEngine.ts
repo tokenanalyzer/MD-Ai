@@ -14,11 +14,11 @@ export const BOT_ENGINE_QUEUE_NAME = "bot-engine";
 // M5.17: Oracle target is 2 OCPU/12GB, single user — these are
 // deliberately conservative fixed bounds, not per-deployment config, so a
 // misbehaving or misconfigured bot can never consume the box.
-const MAX_CONCURRENT_BOT_RUNS = 2;
-const MAX_RUNS_PER_MINUTE = 20;
-const DEFAULT_RETRY_ATTEMPTS = 3;
-const BACKOFF_BASE_MS = 5000;
-const STUCK_RUN_SWEEP_MS = 60_000;
+export const MAX_CONCURRENT_BOT_RUNS = 2;
+export const MAX_RUNS_PER_MINUTE = 20;
+export const DEFAULT_RETRY_ATTEMPTS = 3;
+export const BACKOFF_BASE_MS = 5000;
+export const STUCK_RUN_SWEEP_MS = 60_000;
 
 export interface BotEngineDeps {
   pool: pg.Pool;
