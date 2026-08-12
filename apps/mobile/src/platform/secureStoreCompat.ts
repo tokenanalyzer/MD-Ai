@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 /**
@@ -9,10 +8,20 @@ import * as SecureStore from "expo-secure-store";
  * backend-URL override — api/backendUrl.ts) imports this instead, so
  * `expo start --web` doesn't crash on startup. On web this falls back to
  * `localStorage` — explicitly NOT secure storage, UI-preview-only. The
- * real Android app always has `Platform.OS === "android"` and gets the
- * genuine Keystore-backed SecureStore; the security boundary documented
- * in docs/architecture/07-security-model.md §3 only applies there.
+ * real Android app gets the genuine Keystore-backed SecureStore; the
+ * security boundary documented in docs/architecture/07-security-model.md
+ * §3 only applies there.
+ *
+ * Deliberately not importing `Platform` from "react-native" here: that
+ * package ships Flow-typed source that this repo's plain-Node vitest
+ * suite (test/secureVault.test.ts, test/backendUrl.test.ts — see
+ * vitest.config.ts's "no RN runtime" comment) can't parse. `document`
+ * is a reliable, dependency-free web signal instead — present in every
+ * browser (including react-native-web/Expo web), absent in both React
+ * Native (no DOM) and this Node test environment, which is exactly the
+ * three environments that need to be told apart here.
  */
+const isWeb = typeof document !== "undefined";
 export interface KeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
   setItemAsync(key: string, value: string): Promise<void>;
@@ -31,4 +40,4 @@ const webFallbackStore: KeyValueStore = {
   },
 };
 
-export const secureStoreCompat: KeyValueStore = Platform.OS === "web" ? webFallbackStore : SecureStore;
+export const secureStoreCompat: KeyValueStore = isWeb ? webFallbackStore : SecureStore;
