@@ -8,13 +8,16 @@ import { AgentNetwork } from "../../src/features/command-center/AgentNetwork";
 import { LiveEventStream } from "../../src/features/command-center/LiveEventStream";
 import { CurrentTask } from "../../src/features/command-center/CurrentTask";
 import { QuickActions } from "../../src/features/command-center/QuickActions";
+import { CommandCenter3D } from "../../src/features/command-center/scene3d/CommandCenter3D";
 
 /**
- * M6 COMMAND CENTER — the app's new home screen. A 2D information
- * architecture deliberately kept flat (ScrollView of panels, not a
- * canvas/3D scene) so M7 can later replace individual panels (starting
- * with AgentNetwork) with a 3D renderer without touching this screen's
- * data layer or the other five panels.
+ * M6/M7 COMMAND CENTER — the app's home screen. M6's flat 2D panel list
+ * (kept exactly as-is) plus M7's `CommandCenter3D`, an ADDITIVE panel
+ * inserted right above `AgentNetwork` rather than replacing it —
+ * `AgentNetwork`'s real-data chip list is both the required accessible
+ * textual fallback and the automatic 2D fallback if 3D is unavailable:
+ * `CommandCenter3D` renders nothing on failure, and everything below it
+ * on this screen is completely unaffected either way.
  */
 export default function CommandCenterScreen() {
   return (
@@ -41,6 +44,7 @@ export default function CommandCenterScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <SystemStatus />
         <AICoreCard />
+        <CommandCenter3D />
         <AgentNetwork />
         <LiveEventStream />
         <CurrentTask />

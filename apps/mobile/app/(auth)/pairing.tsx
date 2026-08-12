@@ -18,7 +18,7 @@ export default function PairingScreen() {
     setError(null);
     try {
       await pair(pairingCode.trim().toUpperCase(), deviceName.trim() || "My Phone");
-      router.replace("/(chat)");
+      router.replace("/(command-center)");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the MD AI backend");
     } finally {

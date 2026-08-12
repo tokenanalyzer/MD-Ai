@@ -4,7 +4,9 @@
     "strict": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "moduleSuffixes": [".native", ".web", ""],
+    "module": "esnext"
   },
   "include": ["app", "src", "expo-env.d.ts"]
 }

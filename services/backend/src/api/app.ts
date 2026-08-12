@@ -44,6 +44,22 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: "2mb" }));
   app.use(requestLogger(deps.logger));
 
+  // M7: lets `pnpm web` (a real browser, unlike React Native's fetch which
+  // never enforces CORS) talk to this backend at all — every route below
+  // is already Bearer-token-gated (docs/architecture/07-security-model.md
+  // §2), so an open origin carries no ambient-credential/CSRF risk the way
+  // it would for a cookie-authenticated API. No route/contract changes.
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   app.use("/healthz", healthzRouter());
   app.use("/health", healthRouter(deps.pool, deps.redis, deps.queues));
   app.use("/auth", authRouter(deps.pool));

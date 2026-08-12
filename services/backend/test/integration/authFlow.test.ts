@@ -84,4 +84,19 @@ describe("auth flow", () => {
     const afterRevoke = await request(app).get("/providers").set("Authorization", `Bearer ${token}`);
     expect(afterRevoke.status).toBe(401);
   });
+
+  // M7: the web preview (`pnpm web`) runs in a real browser, unlike React
+  // Native's fetch — every request needs a CORS-permissive response or
+  // the browser blocks it before the app ever sees a reply.
+  it("answers a CORS preflight and tags real responses with CORS headers", async () => {
+    const preflight = await request(app)
+      .options("/auth/pair")
+      .set("Origin", "http://localhost:8081")
+      .set("Access-Control-Request-Method", "POST");
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers["access-control-allow-origin"]).toBe("*");
+
+    const res = await request(app).get("/providers").set("Authorization", "Bearer not-a-real-token");
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+  });
 });
