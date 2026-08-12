@@ -282,11 +282,14 @@ verified where.
   `169.254.169.254` cloud metadata endpoint shared by AWS/GCP/Azure/OCI),
   known metadata hostnames blocked by name, and every redirect hop
   re-validated (a redirect to a private IP is refused exactly like a
-  direct request to one). The one honestly-documented gap: DNS-rebinding
-  between the safety check and the actual connection isn't closed (would
-  require pinning the TCP connection to the validated IP). See
-  `11-mcp-tools.md` §7.1 and `test/unit/ssrfGuard.test.ts` /
-  `test/unit/safeFetch.test.ts` for the exact coverage.
+  direct request to one). **DNS-rebinding is closed (M5.0)**: a
+  connect-time `undici` dispatcher (`core/security/ssrfSafeDispatcher.ts`,
+  installed process-wide at boot) re-validates the resolved address as
+  the *same operation* Node uses to open the socket, so there is no
+  window between "checked" and "connected" for a DNS record to change
+  in. See `11-mcp-tools.md` §7.1 and `test/unit/ssrfGuard.test.ts` /
+  `test/unit/safeFetch.test.ts` / `test/unit/ssrfSafeDispatcher.test.ts` /
+  `test/integration/ssrfDnsRebinding.test.ts` for the exact coverage.
 - **Prompt injection has two independent layers**, not reliance on a
   single mitigation: (1) retrieved tool content is always wrapped in
   explicit "UNTRUSTED EXTERNAL CONTENT" markers with an instruction never

@@ -23,6 +23,11 @@ export class UnsafeUrlError extends Error {
 // below, which covers AWS/GCP/Azure/OCI's shared metadata address).
 const BLOCKED_HOSTNAMES = new Set(["localhost", "localhost.localdomain", "metadata.google.internal", "metadata"]);
 
+/** Exported for `ssrfSafeDispatcher.ts`'s connect-time lookup — the same blocklist, one source of truth. */
+export function isBlockedHostname(hostname: string): boolean {
+  return BLOCKED_HOSTNAMES.has(hostname.toLowerCase());
+}
+
 function isPrivateOrReservedIpv4(ip: string): boolean {
   const parts = ip.split(".").map(Number);
   const a = parts[0] ?? 0;
@@ -47,7 +52,8 @@ function isPrivateOrReservedIpv6(ip: string): boolean {
   return false;
 }
 
-function isPrivateOrReservedIp(ip: string): boolean {
+/** Exported for `ssrfSafeDispatcher.ts`'s connect-time lookup — the same range checks, one source of truth. */
+export function isPrivateOrReservedIp(ip: string): boolean {
   const version = net.isIP(ip);
   if (version === 4) return isPrivateOrReservedIpv4(ip);
   if (version === 6) return isPrivateOrReservedIpv6(ip);
@@ -61,14 +67,16 @@ function isPrivateOrReservedIp(ip: string): boolean {
  * decision; callers still need their own size/timeout/content-type
  * handling (see `safeFetch` below).
  *
- * **Known residual risk (documented, not silently ignored):** this
- * validates the hostname's resolved address at check time; a
- * DNS-rebinding attacker who changes the DNS record between this check
- * and the actual outbound connection could still route around it. Fully
- * closing that gap requires pinning the TCP connection to the exact
- * validated IP (a custom low-level dispatcher), which M4 does not
- * implement — see `07-security-model.md` §10 for the honest scope of
- * this guarantee.
+ * This is the fast, early rejection with a clear error message — the
+ * check that actually closes the DNS-rebinding gap (a record changing
+ * between this check and the real connection) is
+ * `ssrfSafeDispatcher.ts`'s `createSafeLookup`, installed as the
+ * process-wide dispatcher at boot (M5.0): it re-validates the resolved
+ * address at the exact moment Node opens the TCP connection, so there is
+ * no window between "checked" and "connected" for a DNS record to change
+ * in. Both layers run on every request — this one for a quick, readable
+ * failure before even attempting a socket; the dispatcher's for the
+ * actual structural guarantee. See `07-security-model.md` §10.
  */
 export async function assertSafeUrl(rawUrl: string): Promise<URL> {
   let url: URL;

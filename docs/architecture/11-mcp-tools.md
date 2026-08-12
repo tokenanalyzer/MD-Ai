@@ -93,15 +93,18 @@ interface SearchProvider {
 }
 ```
 
-`core/mcp/tools/searchProviders/` holds one implementation today (Brave
-Search, `braveSearch.ts`) registered in `SEARCH_PROVIDERS`.
+`core/mcp/tools/searchProviders/` holds two independent implementations
+(M5.0) — Brave Search (`braveSearch.ts`) and Tavily Search
+(`tavilySearch.ts`) — registered side by side in `SEARCH_PROVIDERS`,
+proving Research Agent isn't coupled to either vendor.
 `resolveSearchProvider(toolKeys)` picks whichever provider the caller
-supplied a key for; adding a second vendor is a new file plus one map
-entry, never a change to `webSearchTool.ts` or Research Agent. If no
-provider has a key on this request, `web_search` throws
-`ToolNotAvailableError` and Research Agent folds that into its
-`limitations` array exactly as it did in M3 with no tools at all — never
-a fabricated result.
+supplied a key for (neither is privileged; a request with only a
+`tavily` key works with zero Brave key present); adding a third vendor
+is a new file plus one map entry, never a change to `webSearchTool.ts`
+or Research Agent. If no provider has a key on this request, `web_search`
+throws `ToolNotAvailableError` — remaining disabled gracefully — and
+Research Agent folds that into its `limitations` array exactly as it did
+in M3 with no tools at all — never a fabricated result.
 
 ## 6. Tool result limits (M4.12)
 
@@ -137,12 +140,24 @@ tool makes:
   IP is refused exactly like a direct request to one (tested:
   `test/unit/safeFetch.test.ts`'s "refuses a redirect that points at a
   private IP").
-- **Documented residual risk**: this validates the resolved address at
-  check time; a DNS-rebinding attacker who changes the record between
-  that check and the actual connection could still route around it.
-  Fully closing that gap needs pinning the TCP connection to the exact
-  validated IP (a custom low-level dispatcher), which M4 does not
-  implement. Stated here rather than silently omitted.
+- **DNS-rebinding closed (M5.0)**: `assertSafeUrl()` above is the fast,
+  early rejection with a readable error — but the guarantee that actually
+  closes the DNS-rebinding gap (a record changing between an earlier
+  check and the real connection) lives in
+  `core/security/ssrfSafeDispatcher.ts`'s `createSafeLookup()`, installed
+  once at process boot (`installSsrfSafeDispatcher()` in `index.ts`'s
+  `main()`) as the global `undici` dispatcher's `connect.lookup`. Because
+  undici forwards that function straight into Node's own
+  `net.connect`/`tls.connect`, the private/reserved-address check runs at
+  the *exact* moment the socket is opened, using the *same* resolved
+  address the connection then uses — there is no separate pre-check step
+  for a rebound DNS record to slip through between. This applies
+  process-wide, to every outbound fetch (provider calls and tool calls
+  alike), not just tool traffic. Tested at both layers:
+  `test/unit/ssrfSafeDispatcher.test.ts` (the lookup wrapper in
+  isolation) and `test/integration/ssrfDnsRebinding.test.ts` (a real
+  `undici.Agent` + real `fetch()`, proving the guard intercepts Node's
+  actual connection machinery, not just our own code path).
 
 Path traversal is structurally not applicable to `file_reader`/`pdf_reader`
 in M4's design — they fetch an `https://` URL, never a filesystem path, so

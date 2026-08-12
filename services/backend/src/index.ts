@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import pino from "pino";
+import { installSsrfSafeDispatcher } from "./core/security/ssrfSafeDispatcher.js";
 import { loadEnv } from "./config/env.js";
 import { getPool, closePool } from "./db/pool.js";
 import { runMigrations } from "./db/migrate.js";
@@ -38,6 +39,11 @@ import { attachChatGateway } from "./api/ws/chatGateway.js";
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 async function main(): Promise<void> {
+  // M5.0: every outbound fetch (provider calls and tool calls alike) goes
+  // through the DNS-rebinding-safe dispatcher from process start — see
+  // core/security/ssrfSafeDispatcher.ts.
+  installSsrfSafeDispatcher();
+
   const env = loadEnv();
   const pool = getPool();
 
