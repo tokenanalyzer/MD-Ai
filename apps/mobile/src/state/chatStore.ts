@@ -20,6 +20,8 @@ interface ChatState {
   connection: ConnectionState;
   lastError: string | null;
   activeTaskId: string | null;
+  /** M6 Current Task panel's elapsed-time display — client-side timestamp (`Date.now()`) set when a task's request goes out, cleared when it settles. Not a backend field; purely local UI timing. */
+  activeTaskStartedAt: number | null;
   /** M3.9: latest safe delegation status label (e.g. "Research Agent working…"), cleared once the task settles. */
   progressLabel: string | null;
   preferredProviderId?: string;
@@ -45,6 +47,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   connection: "idle",
   lastError: null,
   activeTaskId: null,
+  activeTaskStartedAt: null,
   progressLabel: null,
   preferredProviderId: undefined,
   preferredModelId: undefined,
@@ -83,6 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       connection: "working",
       lastError: null,
       progressLabel: null,
+      activeTaskStartedAt: Date.now(),
     }));
 
     try {
@@ -111,6 +115,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set((s) => ({
               connection: "idle",
               activeTaskId: null,
+              activeTaskStartedAt: null,
               progressLabel: null,
               messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, streaming: false } : m)),
             }));
@@ -118,6 +123,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set((s) => ({
               connection: state === "failed" ? "error" : "idle",
               activeTaskId: null,
+              activeTaskStartedAt: null,
               progressLabel: null,
               lastError: state === "failed" ? "The model didn't respond — check your provider keys and try again." : null,
               messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, streaming: false } : m)),
@@ -125,7 +131,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         },
         onError: () => {
-          set({ connection: "error", lastError: "Lost connection to MD AI backend.", activeTaskId: null, progressLabel: null });
+          set({ connection: "error", lastError: "Lost connection to MD AI backend.", activeTaskId: null, activeTaskStartedAt: null, progressLabel: null });
         },
         onClose: () => {
           closeStream = null;
@@ -136,6 +142,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         connection: "error",
         lastError: err instanceof Error ? err.message : "Failed to send message",
         activeTaskId: null,
+        activeTaskStartedAt: null,
       });
     }
   },

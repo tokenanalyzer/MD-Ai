@@ -331,3 +331,182 @@ export function patchNotificationPreferences(patch: Partial<NotificationPreferen
 export function registerPushToken(pushToken: string): Promise<void> {
   return request("/auth/push-token", { method: "POST", body: { pushToken } });
 }
+
+// ---- system health (M6 Command Center — System Status) --------------------
+
+export interface HealthReportDto {
+  status: "ok" | "degraded" | "error";
+  timestamp: string;
+  cpu: { loadavg1: number; loadavg5: number; loadavg15: number; cpuCount: number };
+  memory: { processRssMb: number; systemFreeMb: number; systemTotalMb: number };
+  postgres: { ok: boolean; latencyMs?: number; poolTotal: number; poolIdle: number; poolWaiting: number; error?: string };
+  redis: { ok: boolean; latencyMs?: number; usedMemoryMb?: number; connectedClients?: number; error?: string };
+  queues: { name: string; waiting: number; active: number; completed: number; failed: number; workerCount: number }[];
+  requestLatency: Record<string, { count: number; avgMs: number; p95Ms: number }>;
+}
+
+export function getHealth(): Promise<HealthReportDto> {
+  return request("/health");
+}
+
+// ---- agents (M6 Agent Center / Agent Detail) -------------------------------
+
+export interface AgentCardDto {
+  id: string;
+  displayName: string;
+  description: string;
+  version: string;
+  capabilities: string[];
+  supportedTaskTypes: string[];
+  isInternal: boolean;
+  externalEndpoint?: string;
+  status: "idle" | "working" | "error" | "disabled";
+  lastHeartbeatAt?: string;
+}
+
+export function listAgents(): Promise<AgentCardDto[]> {
+  return request("/agents");
+}
+
+export function setAgentEnabled(agentId: string, enabled: boolean): Promise<AgentCardDto> {
+  return request(`/agents/${agentId}`, { method: "PATCH", body: { enabled } });
+}
+
+export function getAgentDelegations(agentId: string): Promise<AgentCardDto[]> {
+  return request(`/agents/${agentId}/delegations`);
+}
+
+// ---- tools (M6 Tools Center) ------------------------------------------------
+
+export interface ToolDefinitionDto {
+  id: string;
+  displayName: string;
+  description: string;
+  version: string;
+  source: "builtin" | "mcp_server";
+  requiredCapabilities: string[];
+  riskLevel: "low" | "medium" | "high";
+  requiresApproval: boolean;
+  defaultAccess: "allowed" | "restricted" | "denied";
+  enabled: boolean;
+  health: "healthy" | "degraded" | "unavailable" | "unknown";
+  healthDetail?: string;
+  timeoutMs: number;
+  lastVerifiedAt?: string;
+  owner: string;
+}
+
+export function listTools(): Promise<ToolDefinitionDto[]> {
+  return request("/tools");
+}
+
+// ---- memory (M6 Memory Center) ---------------------------------------------
+
+export type MemoryCategory =
+  | "personal_context"
+  | "projects"
+  | "goals"
+  | "preferences"
+  | "decisions"
+  | "research"
+  | "knowledge"
+  | "conversations"
+  | "agent_lessons";
+
+export interface MemoryItemDto {
+  id: string;
+  category: MemoryCategory;
+  content: string;
+  summary?: string;
+  source: string;
+  confidence: number;
+  importance: number;
+  tags: string[];
+  pinned: boolean;
+  approvalStatus: "approved" | "pending" | "rejected";
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /memory/pending and /memory/rejected return raw DB rows (snake_case), not the mapped camelCase MemoryItem GET /memory returns — a pre-existing inconsistency (M3), normalized here so every Memory Center tab renders from one shape. */
+interface MemoryRowWire {
+  id: string;
+  category: MemoryCategory;
+  content: string;
+  summary: string | null;
+  source: string;
+  confidence: string;
+  importance: string;
+  tags: string[];
+  pinned: boolean;
+  approval_status: "approved" | "pending" | "rejected";
+  created_at: string;
+  updated_at: string;
+}
+
+function normalizeMemoryRow(row: MemoryRowWire): MemoryItemDto {
+  return {
+    id: row.id,
+    category: row.category,
+    content: row.content,
+    summary: row.summary ?? undefined,
+    source: row.source,
+    confidence: Number(row.confidence),
+    importance: Number(row.importance),
+    tags: row.tags,
+    pinned: row.pinned,
+    approvalStatus: row.approval_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function listApprovedMemory(): Promise<MemoryItemDto[]> {
+  return request<MemoryItemDto[]>("/memory");
+}
+
+export async function listPendingMemory(): Promise<MemoryItemDto[]> {
+  const rows = await request<MemoryRowWire[]>("/memory/pending");
+  return rows.map(normalizeMemoryRow);
+}
+
+export async function listRejectedMemory(): Promise<MemoryItemDto[]> {
+  const rows = await request<MemoryRowWire[]>("/memory/rejected");
+  return rows.map(normalizeMemoryRow);
+}
+
+export function createMemory(input: { category: MemoryCategory; content: string; tags?: string[]; pinned?: boolean }): Promise<MemoryItemDto> {
+  return request("/memory", { method: "POST", body: input });
+}
+
+export function approveMemory(id: string): Promise<MemoryItemDto> {
+  return request(`/memory/${id}/approve`, { method: "POST", body: {} });
+}
+
+export function rejectMemory(id: string): Promise<MemoryItemDto> {
+  return request(`/memory/${id}/reject`, { method: "POST", body: {} });
+}
+
+export function forgetMemory(id: string): Promise<void> {
+  return request(`/memory/${id}`, { method: "DELETE" });
+}
+
+// ---- events (M6 Live Event Stream) -----------------------------------------
+
+export interface EventDto {
+  id: number;
+  type: string;
+  sourceType: "agent" | "bot" | "tool" | "model" | "automation" | "system";
+  sourceId: string;
+  taskId?: string;
+  severity: "debug" | "info" | "warn" | "error";
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export function listRecentEvents(sinceId?: number, limit = 100): Promise<EventDto[]> {
+  const params = new URLSearchParams();
+  if (sinceId !== undefined) params.set("since", String(sinceId));
+  params.set("limit", String(limit));
+  return request(`/events?${params.toString()}`);
+}
