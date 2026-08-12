@@ -47,6 +47,11 @@ import {
   createHealthRollupWorker,
   scheduleHealthRollupRepeatable,
 } from "./queue/healthRollupJob.js";
+import {
+  createEvolutionSweepQueue,
+  createEvolutionSweepWorker,
+  scheduleEvolutionSweepRepeatable,
+} from "./queue/evolutionSweepJob.js";
 import { createApp } from "./api/app.js";
 import { attachChatGateway } from "./api/ws/chatGateway.js";
 import { attachEventsGateway } from "./api/ws/eventsGateway.js";
@@ -149,6 +154,11 @@ async function main(): Promise<void> {
   const healthRollupWorker = createHealthRollupWorker(pool);
   await scheduleHealthRollupRepeatable(healthRollupQueue);
 
+  // M9: discovery + benchmarking sweeps — see core/evolution/producer.ts.
+  const evolutionSweepQueue = createEvolutionSweepQueue();
+  const evolutionSweepWorker = createEvolutionSweepWorker(pool, eventBus, modelRegistry, memoryEngine);
+  await scheduleEvolutionSweepRepeatable(evolutionSweepQueue);
+
   // M6: the Bot Engine's own queue joins /health's telemetry (bot-engine
   // job counts weren't visible there before this milestone).
   const botEngineQueue = botEngine.getQueue();
@@ -156,7 +166,9 @@ async function main(): Promise<void> {
   const app = createApp({
     pool,
     redis,
-    queues: botEngineQueue ? [eventsRetentionQueue, healthRollupQueue, botEngineQueue] : [eventsRetentionQueue, healthRollupQueue],
+    queues: botEngineQueue
+      ? [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue, botEngineQueue]
+      : [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue],
     eventBus,
     modelRegistry,
     agentRegistry,
@@ -182,6 +194,8 @@ async function main(): Promise<void> {
     await eventsRetentionQueue.close();
     await healthRollupWorker.close();
     await healthRollupQueue.close();
+    await evolutionSweepWorker.close();
+    await evolutionSweepQueue.close();
     await closeRedisConnection();
     await closePool();
     process.exit(0);

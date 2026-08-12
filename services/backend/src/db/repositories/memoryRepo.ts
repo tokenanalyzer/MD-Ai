@@ -1,5 +1,6 @@
 import type pg from "pg";
 import type { MemoryApprovalStatus, MemoryCategory } from "@mdai/shared-types";
+import type { Queryable } from "../queryable.js";
 
 export interface MemoryRow {
   id: string;
@@ -32,7 +33,7 @@ export interface InsertMemoryInput {
   approvalStatus?: MemoryApprovalStatus;
 }
 
-export async function insertMemory(pool: pg.Pool, input: InsertMemoryInput): Promise<MemoryRow> {
+export async function insertMemory(pool: Queryable, input: InsertMemoryInput): Promise<MemoryRow> {
   const { rows } = await pool.query<MemoryRow>(
     `INSERT INTO memory_items (category, content, summary, source, source_task_id, confidence, importance, tags, pinned, approval_status)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,

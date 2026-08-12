@@ -1,5 +1,6 @@
 import type pg from "pg";
 import type { ModelAvailability, ModelCallSample } from "@mdai/shared-types";
+import type { Queryable } from "../queryable.js";
 
 export interface ModelRegistryRow {
   id: string;
@@ -46,7 +47,7 @@ export async function listModelRegistry(
   return rows;
 }
 
-export async function getModelRegistryEntry(pool: pg.Pool, id: string): Promise<ModelRegistryRow | undefined> {
+export async function getModelRegistryEntry(pool: Queryable, id: string): Promise<ModelRegistryRow | undefined> {
   const { rows } = await pool.query<ModelRegistryRow>("SELECT * FROM model_registry WHERE id = $1", [id]);
   return rows[0];
 }
@@ -76,7 +77,7 @@ export interface UpsertModelInput {
  * model metadata without resetting what the user or the telemetry rollup
  * has already established.
  */
-export async function upsertDiscoveredModel(pool: pg.Pool, input: UpsertModelInput): Promise<ModelRegistryRow> {
+export async function upsertDiscoveredModel(pool: Queryable, input: UpsertModelInput): Promise<ModelRegistryRow> {
   const { rows } = await pool.query<ModelRegistryRow>(
     `INSERT INTO model_registry (
         id, provider_id, provider_model_ref, display_name, context_length,
@@ -120,7 +121,7 @@ export async function upsertDiscoveredModel(pool: pg.Pool, input: UpsertModelInp
 }
 
 export async function setModelUserConfig(
-  pool: pg.Pool,
+  pool: Queryable,
   id: string,
   patch: { userEnabled?: boolean; userPriority?: number },
 ): Promise<ModelRegistryRow | undefined> {

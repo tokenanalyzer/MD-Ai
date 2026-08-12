@@ -44,6 +44,7 @@ export function QuickActions() {
     { key: "memory", label: "Memory", onPress: () => router.push("/(memory)") },
     { key: "tools", label: "Tools", onPress: () => router.push("/(tools)") },
     { key: "automations", label: "Automations", onPress: () => router.push("/(bots)") },
+    { key: "approvals", label: "Approvals", onPress: () => router.push("/(evolution)") },
   ];
 
   return (

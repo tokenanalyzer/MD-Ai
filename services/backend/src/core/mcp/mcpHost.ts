@@ -1,9 +1,23 @@
 import type pg from "pg";
+import type { ToolDefinition, ToolHandler } from "@mdai/shared-types";
 import type { EventBus } from "../events/eventBus.js";
 import type { ToolRegistryService } from "./toolRegistryService.js";
-import { completeToolInvocation, createToolInvocation, updateToolHealth } from "../../db/repositories/toolRepo.js";
+import {
+  completeToolInvocation,
+  createToolInvocation,
+  getToolInvocation,
+  updateToolHealth,
+  type ToolInvocationRow,
+} from "../../db/repositories/toolRepo.js";
 import { writeAuditLog } from "../../db/repositories/auditLogRepo.js";
-import { ToolApprovalDeniedError, ToolApprovalRequiredError, ToolNotAvailableError, ToolPermissionDeniedError, ToolTimeoutError } from "./errors.js";
+import {
+  ToolApprovalDeniedError,
+  ToolApprovalRequiredError,
+  ToolNotAvailableError,
+  ToolPermissionDeniedError,
+  ToolResumptionNotAllowedError,
+  ToolTimeoutError,
+} from "./errors.js";
 import { evaluateToolApprovalPolicy } from "../agents/guardian/policy.js";
 import { UnsafeUrlError } from "../security/ssrfGuard.js";
 
@@ -132,6 +146,95 @@ export async function invokeTool(deps: McpHostDeps, request: InvokeToolRequest):
     taskId,
     payload: { type: "tool.called", toolId, agentId, taskId, invocationId: invocationRow.id },
   });
+
+  return runToolHandler(deps, definition, handler, { toolId, agentId, taskId, input, toolKeys }, invocationRow);
+}
+
+/**
+ * M9: a human approved a `tool_invocations` row Guardian left
+ * `awaiting_approval` (M8) — this actually replays the original call,
+ * closing the gap M8 explicitly left open ("no task-resumption mechanism
+ * exists to replay/re-execute the original tool call"). Reuses the exact
+ * same timeout-bounded execution path `invokeTool` uses via
+ * `runToolHandler`, against the SAME invocation row (its status moves
+ * `approved` → `succeeded`/`failed`/`timeout`, never a second row) — a
+ * resumed call is a continuation of one tool call's lifecycle, not a new
+ * one. `toolKeys` are never persisted anywhere (same discipline as a
+ * fresh request): the original request's keys are long gone by the time a
+ * human approves later, so a human approving a `requires_approval` tool
+ * that also needs a fresh credential supplies one at approval time (`POST
+ * /tools/approvals/:id/decide` body) — empty for every tool that doesn't
+ * need one, which today is every built-in tool (M8: none currently ship
+ * `requiresApproval: true`).
+ */
+export async function resumeApprovedToolInvocation(
+  deps: McpHostDeps,
+  invocationId: string,
+  toolKeys: Record<string, string>,
+): Promise<Record<string, unknown>> {
+  const { pool, eventBus, toolRegistry } = deps;
+
+  const invocationRow = await getToolInvocation(pool, invocationId);
+  if (!invocationRow || invocationRow.status !== "approved") {
+    throw new ToolResumptionNotAllowedError(invocationId, invocationRow?.status);
+  }
+  if (!invocationRow.agent_id) {
+    throw new ToolResumptionNotAllowedError(invocationId, invocationRow.status);
+  }
+
+  const definition = await toolRegistry.get(invocationRow.tool_id);
+  if (!definition || !definition.enabled) {
+    throw new ToolNotAvailableError(invocationRow.tool_id);
+  }
+  const handler = toolRegistry.getImplementation(invocationRow.tool_id);
+  if (!handler) {
+    throw new ToolNotAvailableError(invocationRow.tool_id);
+  }
+
+  await eventBus.publish({
+    sourceType: "tool",
+    sourceId: invocationRow.tool_id,
+    taskId: invocationRow.task_id ?? undefined,
+    payload: {
+      type: "tool.resumed",
+      toolId: invocationRow.tool_id,
+      agentId: invocationRow.agent_id,
+      invocationId: invocationRow.id,
+    },
+  });
+
+  return runToolHandler(
+    deps,
+    definition,
+    handler,
+    {
+      toolId: invocationRow.tool_id,
+      agentId: invocationRow.agent_id,
+      taskId: invocationRow.task_id ?? undefined,
+      input: invocationRow.input,
+      toolKeys,
+    },
+    invocationRow,
+  );
+}
+
+/**
+ * The shared timeout-bounded "actually call the handler, complete the
+ * invocation, publish the lifecycle events" core — used by both a fresh
+ * `invokeTool` call (post-gate) and `resumeApprovedToolInvocation` (same
+ * row, later). Never creates or looks up the invocation row itself; the
+ * caller owns that, since a fresh call and a resumed call get there
+ * differently.
+ */
+async function runToolHandler(
+  deps: McpHostDeps,
+  definition: ToolDefinition,
+  handler: ToolHandler,
+  request: InvokeToolRequest,
+  invocationRow: ToolInvocationRow,
+): Promise<Record<string, unknown>> {
+  const { pool, eventBus } = deps;
+  const { toolId, agentId, taskId, input, toolKeys } = request;
 
   const start = Date.now();
   const controller = new AbortController();

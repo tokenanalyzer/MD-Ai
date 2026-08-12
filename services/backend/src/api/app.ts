@@ -23,6 +23,7 @@ import { notificationsRouter } from "./routes/notifications.js";
 import { userTopicsRouter } from "./routes/userTopics.js";
 import { backgroundCredentialsRouter } from "./routes/backgroundCredentials.js";
 import { eventsRouter } from "./routes/events.js";
+import { evolutionRouter } from "./routes/evolution.js";
 
 export interface AppDeps {
   pool: pg.Pool;
@@ -67,12 +68,13 @@ export function createApp(deps: AppDeps): Express {
   app.use("/models", modelsRouter(deps.pool, deps.modelRegistry));
   app.use("/agents", agentsRouter(deps.pool, deps.agentRegistry));
   app.use("/memory", memoryRouter(deps.pool, deps.memoryEngine));
-  app.use("/tools", toolsRouter(deps.pool, deps.toolRegistry));
+  app.use("/tools", toolsRouter(deps.pool, deps.toolRegistry, deps.eventBus));
   app.use("/bots", botsRouter(deps.pool, deps.botRegistry, deps.botEngine));
   app.use("/notifications", notificationsRouter(deps.pool));
   app.use("/user-topics", userTopicsRouter(deps.pool));
   app.use("/background-credentials", backgroundCredentialsRouter(deps.pool));
   app.use("/events", eventsRouter(deps.pool));
+  app.use("/evolution", evolutionRouter(deps.pool, deps.eventBus, deps.modelRegistry, deps.memoryEngine));
   app.use(
     "/conversations",
     conversationsRouter(deps.pool, deps.eventBus, deps.modelRegistry, deps.agentRegistry, deps.toolRegistry),

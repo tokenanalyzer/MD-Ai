@@ -1,14 +1,16 @@
 import { Router } from "express";
 import type pg from "pg";
-import type { ToolRegistry } from "@mdai/shared-types";
 import { authGuard } from "../middleware/authGuard.js";
 import { AppError } from "../errors.js";
 import { decideToolApprovalBodySchema } from "../schemas.js";
-import { decideToolInvocation, listToolInvocationsByStatus } from "../../db/repositories/toolRepo.js";
+import { decideToolInvocation, getToolInvocation, listToolInvocationsByStatus } from "../../db/repositories/toolRepo.js";
 import { writeAuditLog } from "../../db/repositories/auditLogRepo.js";
+import type { ToolRegistryService } from "../../core/mcp/toolRegistryService.js";
+import type { EventBus } from "../../core/events/eventBus.js";
+import { resumeApprovedToolInvocation } from "../../core/mcp/mcpHost.js";
 
 /** Read-only discovery — tool health/enablement is managed by the Tool Registry itself, not by hand-editing through this API in M4. */
-export function toolsRouter(pool: pg.Pool, toolRegistry: ToolRegistry): Router {
+export function toolsRouter(pool: pg.Pool, toolRegistry: ToolRegistryService, eventBus: EventBus): Router {
   const router = Router();
   router.use(authGuard(pool));
 
@@ -43,9 +45,16 @@ export function toolsRouter(pool: pg.Pool, toolRegistry: ToolRegistry): Router {
     }
   });
 
+  // M9: on "approved", actually replays the original call via
+  // `resumeApprovedToolInvocation` — closing the gap M8 left open (a
+  // decision alone used to be the end of the story). A resumed call can
+  // legitimately fail/timeout just like a fresh one; that's not an HTTP
+  // error here, it's the invocation's own real outcome — the response
+  // always reflects the invocation's actual final status, fetched fresh
+  // after the resume attempt.
   router.post("/approvals/:invocationId/decide", async (req, res, next) => {
     try {
-      const { decision } = decideToolApprovalBodySchema.parse(req.body);
+      const { decision, toolKeys } = decideToolApprovalBodySchema.parse(req.body);
       const invocationId = req.params.invocationId as string;
 
       const updated = await decideToolInvocation(pool, invocationId, decision);
@@ -61,7 +70,18 @@ export function toolsRouter(pool: pg.Pool, toolRegistry: ToolRegistry): Router {
         metadata: { toolId: updated.tool_id, agentId: updated.agent_id },
       });
 
-      res.json({ data: { id: updated.id, status: updated.status } });
+      if (decision === "approved") {
+        try {
+          await resumeApprovedToolInvocation({ pool, eventBus, toolRegistry }, invocationId, toolKeys ?? {});
+        } catch {
+          // The resumed call's own outcome (failed/timeout/blocked) is
+          // already recorded on the invocation row by runToolHandler —
+          // nothing further to do here except report that real outcome.
+        }
+      }
+
+      const final = await getToolInvocation(pool, invocationId);
+      res.json({ data: { id: invocationId, status: final?.status ?? updated.status } });
     } catch (err) {
       next(err);
     }

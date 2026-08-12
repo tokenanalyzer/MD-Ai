@@ -58,3 +58,18 @@ export class ToolApprovalRequiredError extends Error {
     this.name = "ToolApprovalRequiredError";
   }
 }
+
+/** M9: `resumeApprovedToolInvocation` refuses to replay an invocation that isn't (or is no longer) exactly `status = 'approved'` — e.g. an unknown id, a still-`awaiting_approval` row, or one already resumed once (which moved it past `approved`). Prevents a call from being replayed twice or before a human actually approved it. */
+export class ToolResumptionNotAllowedError extends Error {
+  constructor(
+    readonly invocationId: string,
+    readonly actualStatus?: string,
+  ) {
+    super(
+      actualStatus
+        ? `Tool invocation "${invocationId}" cannot be resumed — status is "${actualStatus}", not "approved".`
+        : `Tool invocation "${invocationId}" not found.`,
+    );
+    this.name = "ToolResumptionNotAllowedError";
+  }
+}

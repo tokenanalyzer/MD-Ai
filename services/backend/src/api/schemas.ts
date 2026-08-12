@@ -127,11 +127,14 @@ export const pushTokenBodySchema = z.object({
   pushToken: z.string().min(1),
 });
 
-// ---- M8: Guardian tool-approval decisions ---------------------------------
+// ---- M8/M9: Guardian tool-approval decisions ------------------------------
 
 export const decideToolApprovalBodySchema = z.object({
   decision: z.enum(["approved", "denied"]),
+  /** M9: a fresh, request-scoped credential for the resumed call, if the tool needs one — the original request's `toolKeys` are gone by the time a human approves later. Never persisted. */
+  toolKeys: z.record(z.string(), z.string()).optional(),
 });
+
 
 const findingImportanceSchema = z.enum(["low", "medium", "high", "critical"]);
 

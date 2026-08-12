@@ -27,14 +27,16 @@ export interface EvolutionProposalRow {
 }
 
 /**
- * Data-access layer only, for migration `0012_evolution_audit.sql`'s
- * `evolution_proposals` table. M8 wires Guardian's automatic policy review
- * onto rows in this table (docs/architecture/09-roadmap.md M8); nothing
- * here creates a proposal from a real discovery/benchmarking sweep or runs
- * sandbox testing — that producer pipeline is explicitly M9
- * (`core/evolution/README.md`). `createProposal` exists so Guardian's
- * review path is genuinely testable end-to-end against a real row, not so
- * this module is a proposal-authoring API.
+ * Data-access layer for migration `0012_evolution_audit.sql`'s
+ * `evolution_proposals` table. M8 wired Guardian's automatic policy review
+ * onto rows here; M9 adds the real producer pipeline
+ * (`core/evolution/discoverySweep.ts`/`benchmarking.ts` create rows via
+ * `createProposal`), sandbox testing (`recordSandboxResult`), and applying
+ * (`markApplied`) — see `core/evolution/README.md`. No function here ever
+ * writes `status = 'approved'` except `decideProposal`, and only when
+ * called with a human-originated decision (`api/routes/evolution.ts`) —
+ * the sweep producer and Guardian both go through `applyGuardianVerdict`/
+ * `markApplied`, neither of which can produce `approved`.
  */
 export async function createProposal(
   pool: pg.Pool,
@@ -62,9 +64,44 @@ export async function getProposal(pool: pg.Pool, id: string): Promise<EvolutionP
   return rows[0];
 }
 
-export async function listProposals(pool: pg.Pool): Promise<EvolutionProposalRow[]> {
+export async function listProposals(pool: pg.Pool, status?: EvolutionProposalStatus): Promise<EvolutionProposalRow[]> {
+  if (status) {
+    const { rows } = await pool.query<EvolutionProposalRow>(
+      "SELECT * FROM evolution_proposals WHERE status = $1 ORDER BY created_at DESC",
+      [status],
+    );
+    return rows;
+  }
   const { rows } = await pool.query<EvolutionProposalRow>("SELECT * FROM evolution_proposals ORDER BY created_at DESC");
   return rows;
+}
+
+/** M9: records a sandbox-test outcome (`core/evolution/sandbox.ts` — a real, always-rolled-back transaction, not a fabricated pass) and advances `proposed` → `sandbox_tested`. Only transitions rows still `proposed`, so a sandbox test can't be recorded twice or overwrite a Guardian denial. */
+export async function recordSandboxResult(
+  pool: pg.Pool,
+  id: string,
+  sandboxResult: Record<string, unknown>,
+): Promise<EvolutionProposalRow | undefined> {
+  const { rows } = await pool.query<EvolutionProposalRow>(
+    `UPDATE evolution_proposals SET status = 'sandbox_tested', sandbox_result = $2 WHERE id = $1 AND status = 'proposed' RETURNING *`,
+    [id, sandboxResult],
+  );
+  return rows[0];
+}
+
+/** M9: records that a proposal was actually applied (`core/evolution/applyProposal.ts`) — either auto-applied by the sweep producer (no `decided_by`, since it was never gated behind a human decision) or applied after a human's explicit approval. Only transitions rows that are `sandbox_tested` or already `approved`. */
+export async function markApplied(
+  pool: pg.Pool,
+  id: string,
+  resultMetadata?: Record<string, unknown>,
+): Promise<EvolutionProposalRow | undefined> {
+  const { rows } = await pool.query<EvolutionProposalRow>(
+    `UPDATE evolution_proposals SET status = 'applied', applied_at = now(),
+        sandbox_result = COALESCE($2, sandbox_result)
+     WHERE id = $1 AND status IN ('sandbox_tested', 'approved') RETURNING *`,
+    [id, resultMetadata ?? null],
+  );
+  return rows[0];
 }
 
 /** Guardian's automatic verdict: `deny` sets `rejected`/`decided_by='auto'`; `pending` leaves the row exactly as `proposed` for a human. Guardian can never write `approved` — enforced here by simply never accepting it as an argument. */

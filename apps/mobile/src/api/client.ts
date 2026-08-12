@@ -527,3 +527,80 @@ export function listRecentEvents(sinceId?: number, limit = 100): Promise<EventDt
   params.set("limit", String(limit));
   return request(`/events?${params.toString()}`);
 }
+
+// ---- tool approvals (M8/M9 Guardian tool-approval gate) --------------------
+
+export interface ToolApprovalDto {
+  id: string;
+  toolId: string;
+  agentId: string | null;
+  taskId?: string;
+  input: Record<string, unknown>;
+  createdAt: string;
+}
+
+export function listToolApprovals(): Promise<ToolApprovalDto[]> {
+  return request("/tools/approvals");
+}
+
+/** M9: on "approved" this actually replays the paused tool call — `toolKeys` is only needed if that tool requires a fresh credential the original request's key can no longer supply. Never persisted. */
+export function decideToolApproval(
+  invocationId: string,
+  decision: "approved" | "denied",
+  toolKeys?: Record<string, string>,
+): Promise<{ id: string; status: string }> {
+  return request(`/tools/approvals/${invocationId}/decide`, { method: "POST", body: { decision, toolKeys } });
+}
+
+// ---- evolution proposals (M9 Evolution Engine) ------------------------------
+
+export type EvolutionChangeClass =
+  | "knowledge_update"
+  | "model_registry_update"
+  | "routing_policy_update"
+  | "skill_update"
+  | "application_code_update";
+
+export type EvolutionProposalStatus = "proposed" | "sandbox_tested" | "approved" | "rejected" | "applied" | "rolled_back";
+
+export interface EvolutionProposalDto {
+  id: string;
+  changeClass: EvolutionChangeClass;
+  title: string;
+  rationale: string;
+  diff: Record<string, unknown>;
+  riskLevel: "low" | "medium" | "high";
+  requiresApproval: boolean;
+  status: EvolutionProposalStatus;
+  sandboxResult: Record<string, unknown> | null;
+  decidedBy: "user" | "auto" | null;
+  decidedAt?: string;
+  appliedAt?: string;
+  rolledBackAt?: string;
+  createdAt: string;
+}
+
+export function listEvolutionProposals(status?: EvolutionProposalStatus): Promise<EvolutionProposalDto[]> {
+  const params = status ? `?status=${status}` : "";
+  return request(`/evolution/proposals${params}`);
+}
+
+export function approveEvolutionProposal(id: string): Promise<EvolutionProposalDto> {
+  return request(`/evolution/proposals/${id}/approve`, { method: "POST" });
+}
+
+export function rejectEvolutionProposal(id: string): Promise<EvolutionProposalDto> {
+  return request(`/evolution/proposals/${id}/reject`, { method: "POST" });
+}
+
+export interface EvolutionSweepSummaryDto {
+  sweepId: string;
+  proposalsCreated: number;
+  proposalsApplied: number;
+  proposalsDenied: number;
+  durationMs: number;
+}
+
+export function triggerEvolutionSweep(): Promise<EvolutionSweepSummaryDto> {
+  return request("/evolution/sweep", { method: "POST" });
+}

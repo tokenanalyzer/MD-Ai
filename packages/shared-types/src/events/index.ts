@@ -220,6 +220,13 @@ export interface ToolBlockedEvent {
   invocationId?: string;
   reason: string;
 }
+/** M9: a human approved a paused (`awaiting_approval`) tool_invocation and the MCP host is now actually replaying it — distinct from a fresh `tool.called` so the Command Center/audit trail can show "approved & resumed" rather than a brand-new call. */
+export interface ToolResumedEvent {
+  type: "tool.resumed";
+  toolId: string;
+  agentId: string;
+  invocationId: string;
+}
 
 // ---- model.* ---------------------------------------------------------------
 
@@ -319,6 +326,48 @@ export interface AutomationTriggeredEvent {
   triggerType: "schedule" | "event" | "webhook" | "manual";
 }
 
+// ---- evolution.* (M9 — Evolution Engine sweeps + proposal lifecycle) ------
+
+/** A discovery+benchmarking sweep began — `sweepId` is a run-scoped correlation id, not a persisted row (sweeps aren't modeled as their own table; their output is `evolution_proposals` rows). */
+export interface EvolutionSweepStartedEvent {
+  type: "evolution.sweep.started";
+  sweepId: string;
+}
+export interface EvolutionSweepCompletedEvent {
+  type: "evolution.sweep.completed";
+  sweepId: string;
+  proposalsCreated: number;
+  proposalsApplied: number;
+  proposalsDenied: number;
+  durationMs: number;
+}
+export interface EvolutionProposalCreatedEvent {
+  type: "evolution.proposal.created";
+  proposalId: string;
+  changeClass: string;
+  riskLevel: "low" | "medium" | "high";
+  requiresApproval: boolean;
+}
+/** The producer's own proposal auto-applied (never a human action) — see `applyEvolutionProposal`; only reachable for change classes with a real applier and `requiresApproval: false`. */
+export interface EvolutionProposalAppliedEvent {
+  type: "evolution.proposal.applied";
+  proposalId: string;
+  changeClass: string;
+  appliedBy: "system" | "user";
+}
+/** A human explicitly approved a `requires_approval` proposal via `POST /evolution/proposals/:id/approve` — Guardian and the sweep producer can never emit this themselves. */
+export interface EvolutionProposalApprovedEvent {
+  type: "evolution.proposal.approved";
+  proposalId: string;
+  changeClass: string;
+}
+export interface EvolutionProposalRejectedEvent {
+  type: "evolution.proposal.rejected";
+  proposalId: string;
+  changeClass: string;
+  decidedBy: "user" | "auto";
+}
+
 export type EventPayload =
   | AgentStartedEvent
   | AgentIdleEvent
@@ -349,6 +398,7 @@ export type EventPayload =
   | ToolFailedEvent
   | ToolTimeoutEvent
   | ToolBlockedEvent
+  | ToolResumedEvent
   | ModelSelectedEvent
   | ModelSwitchedEvent
   | BotRegisteredEvent
@@ -363,6 +413,12 @@ export type EventPayload =
   | BotFindingEscalatedEvent
   | BotNotificationSentEvent
   | BotNotificationFailedEvent
-  | AutomationTriggeredEvent;
+  | AutomationTriggeredEvent
+  | EvolutionSweepStartedEvent
+  | EvolutionSweepCompletedEvent
+  | EvolutionProposalCreatedEvent
+  | EvolutionProposalAppliedEvent
+  | EvolutionProposalApprovedEvent
+  | EvolutionProposalRejectedEvent;
 
 export type EventType = EventPayload["type"];
