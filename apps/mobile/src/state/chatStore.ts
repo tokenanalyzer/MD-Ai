@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import { cancelTask, createConversation, sendMessage, type RoutingMode, type TaskCategory } from "../api/client";
+import {
+  cancelTask,
+  createConversation,
+  getTaskTree,
+  sendMessage,
+  type RoutingMode,
+  type TaskCategory,
+  type TaskTreeNodeDto,
+} from "../api/client";
 import { buildProviderKeysForRequest } from "../security/secureVault";
 import { openTaskStream } from "../realtime/chatSocket";
 
@@ -10,6 +18,12 @@ export interface ChatMessage {
   role: ChatMessageRole;
   text: string;
   streaming?: boolean;
+  /** M6.4: the backend task id behind this assistant message — set once `send()`'s POST resolves, used to fetch the real task tree once it settles. */
+  taskId?: string;
+  /** M6.4 "expandable task details" — every safe `agent_progress` label seen for this task, in order (not just the latest), e.g. ["Thinking…", "Research Agent working…", "Searching the web…"]. Never chain-of-thought. */
+  progressHistory?: string[];
+  /** M6.4: real delegation tree (root + descendants) fetched from GET /tasks/:id/tree once the task settles — which agents ran and which model each used. */
+  tree?: TaskTreeNodeDto[];
 }
 
 export type ConnectionState = "idle" | "working" | "error";
@@ -82,7 +96,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     const userMsg: ChatMessage = { id: `local-${Date.now()}`, role: "user", text };
-    const assistantMsg: ChatMessage = { id: `local-${Date.now()}-a`, role: "assistant", text: "", streaming: true };
+    const assistantMsg: ChatMessage = { id: `local-${Date.now()}-a`, role: "assistant", text: "", streaming: true, progressHistory: [] };
     set((s) => ({
       messages: [...s.messages, userMsg, assistantMsg],
       connection: "working",
@@ -90,6 +104,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       progressLabel: null,
       activeTaskStartedAt: Date.now(),
     }));
+
+    async function attachTaskTree(taskId: string) {
+      try {
+        const tree = await getTaskTree(taskId);
+        set((s) => ({ messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, tree } : m)) }));
+      } catch {
+        // best-effort — the message still has its progressHistory/text either way
+      }
+    }
 
     try {
       const task = await sendMessage(conversationId, {
@@ -100,7 +123,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         routingMode: get().routingMode,
         taskCategory,
       });
-      set({ activeTaskId: task.id });
+      set((s) => ({
+        activeTaskId: task.id,
+        messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, taskId: task.id } : m)),
+      }));
 
       closeStream?.();
       closeStream = await openTaskStream(task.id, {
@@ -111,7 +137,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }));
         },
         onProgress: (label) => {
-          set({ progressLabel: label });
+          set((s) => ({
+            progressLabel: label,
+            messages: s.messages.map((m) =>
+              m.id === assistantMsg.id ? { ...m, progressHistory: [...(m.progressHistory ?? []), label] } : m,
+            ),
+          }));
         },
         onStatus: (state) => {
           if (state === "completed") {
@@ -122,6 +153,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               progressLabel: null,
               messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, streaming: false } : m)),
             }));
+            void attachTaskTree(task.id);
           } else if (state === "failed" || state === "canceled") {
             set((s) => ({
               connection: state === "failed" ? "error" : "idle",
@@ -131,6 +163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               lastError: state === "failed" ? "The model didn't respond — check your provider keys and try again." : null,
               messages: s.messages.map((m) => (m.id === assistantMsg.id ? { ...m, streaming: false } : m)),
             }));
+            void attachTaskTree(task.id);
           }
         },
         onError: () => {

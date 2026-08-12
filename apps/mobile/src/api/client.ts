@@ -223,6 +223,23 @@ export function cancelTask(taskId: string): Promise<void> {
   return request(`/tasks/${taskId}/cancel`, { method: "POST", body: {} });
 }
 
+/** M6.4 Chat "expandable task details" — one node per task in the real delegation tree (root + descendants), each with its own real assignedAgentId/modelId/state/timestamps. */
+export interface TaskTreeNodeDto {
+  id: string;
+  parentTaskId: string | null;
+  assignedAgentId: string;
+  taskType: string;
+  state: "submitted" | "working" | "input-required" | "completed" | "failed" | "canceled";
+  modelId: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export function getTaskTree(taskId: string): Promise<TaskTreeNodeDto[]> {
+  return request(`/tasks/${taskId}/tree`);
+}
+
 // ---- bots (M5.16 — Bot Fleet screen) ------------------------------------------
 
 export type BotStatus = "idle" | "running" | "paused" | "disabled" | "error";

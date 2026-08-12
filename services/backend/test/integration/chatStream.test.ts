@@ -116,6 +116,14 @@ describe("chat: full REST + WS pipeline against a real backend + real DB", () =>
       "task.completed",
       "agent.completed",
     ]);
+
+    // M6.4: GET /tasks/:id/tree — the mobile Chat screen's "expandable task
+    // details" reads this for a real per-task agent/model breakdown.
+    const treeRes = await request(app).get(`/tasks/${taskId}/tree`).set("Authorization", `Bearer ${token}`);
+    expect(treeRes.status).toBe(200);
+    expect(treeRes.body.data).toHaveLength(1);
+    expect(treeRes.body.data[0]).toMatchObject({ id: taskId, assignedAgentId: "master", state: "completed" });
+    expect(treeRes.body.data[0].modelId).toContain("groq/");
   });
 
   it("falls back to the second configured provider end-to-end when the first fails", async () => {

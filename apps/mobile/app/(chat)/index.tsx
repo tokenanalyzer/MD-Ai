@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
-import { StatusDot } from "../../src/components/StatusDot";
+import { PulseDot } from "../../src/components/PulseDot";
 import { MessageBubble } from "../../src/components/MessageBubble";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useChatStore } from "../../src/state/chatStore";
@@ -30,6 +30,7 @@ export default function ChatScreen() {
     progressLabel,
   } = useChatStore();
   const [draft, setDraft] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   async function handleSend() {
@@ -46,7 +47,11 @@ export default function ChatScreen() {
         <View>
           <Text style={styles.headerTitle}>MD AI</Text>
           <View style={styles.statusRow}>
-            <StatusDot status={connection === "error" ? "error" : connection === "working" ? "working" : "idle"} />
+            <PulseDot
+              color={connection === "error" ? colors.danger : connection === "working" ? colors.secondary : colors.accent}
+              active={connection === "working"}
+              size={8}
+            />
             <Text style={styles.statusText}>
               {connection === "working"
                 ? (progressLabel ?? "Master Agent is answering…")
@@ -108,9 +113,11 @@ export default function ChatScreen() {
 
       <View style={styles.inputRow}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, inputFocused && styles.inputFocused]}
           value={draft}
           onChangeText={setDraft}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
           placeholder="Message MD AI…"
           placeholderTextColor={colors.textTertiary}
           multiline
@@ -139,7 +146,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
   headerActions: { flexDirection: "row", gap: spacing.sm },
-  statusRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 4 },
   statusText: { color: colors.textSecondary, fontSize: typography.fontSize.xs },
   routingBadge: { color: colors.secondary, fontSize: typography.fontSize.xs, marginTop: 2 },
   settingsButton: {
@@ -185,5 +192,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     maxHeight: 120,
     fontSize: typography.fontSize.md,
+  },
+  inputFocused: {
+    borderColor: colors.accent,
   },
 });
