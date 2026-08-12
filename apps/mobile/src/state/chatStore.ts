@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { cancelTask, createConversation, sendMessage, type RoutingMode } from "../api/client";
+import { cancelTask, createConversation, sendMessage, type RoutingMode, type TaskCategory } from "../api/client";
 import { buildProviderKeysForRequest } from "../security/secureVault";
 import { openTaskStream } from "../realtime/chatSocket";
 
@@ -33,9 +33,11 @@ interface ChatState {
   setPreferredProvider: (providerId?: string) => void;
   setManualModel: (providerId: string, modelId?: string) => void;
   setRoutingMode: (mode: RoutingMode) => void;
-  send: (text: string) => Promise<void>;
+  send: (text: string, taskCategory?: TaskCategory) => Promise<void>;
   retryLast: () => Promise<void>;
   cancelActive: () => Promise<void>;
+  /** M6 Quick Actions "New Chat" — closes any open task stream and clears local state so the next `send()` creates a fresh conversation. Does not delete the previous conversation server-side. */
+  startNewConversation: () => void;
 }
 
 let closeStream: (() => void) | null = null;
@@ -65,7 +67,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setManualModel: (providerId, modelId) => set({ preferredProviderId: providerId, preferredModelId: modelId }),
   setRoutingMode: (mode) => set({ routingMode: mode }),
 
-  send: async (text: string) => {
+  send: async (text: string, taskCategory?: TaskCategory) => {
     lastUserText = text;
     const conversationId = await get().ensureConversation();
     const providerKeys = await buildProviderKeysForRequest();
@@ -96,6 +98,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         preferredProviderId: get().preferredProviderId,
         preferredModelId: get().preferredModelId,
         routingMode: get().routingMode,
+        taskCategory,
       });
       set({ activeTaskId: task.id });
 
@@ -155,5 +158,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const taskId = get().activeTaskId;
     if (!taskId) return;
     await cancelTask(taskId);
+  },
+
+  startNewConversation: () => {
+    closeStream?.();
+    closeStream = null;
+    lastUserText = null;
+    set({
+      conversationId: null,
+      messages: [],
+      connection: "idle",
+      lastError: null,
+      activeTaskId: null,
+      activeTaskStartedAt: null,
+      progressLabel: null,
+    });
   },
 }));

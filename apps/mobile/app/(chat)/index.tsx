@@ -60,6 +60,11 @@ export default function ChatScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          <Link href="/(command-center)" asChild>
+            <Pressable style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>Center</Text>
+            </Pressable>
+          </Link>
           <Link href="/(bots)" asChild>
             <Pressable style={styles.settingsButton}>
               <Text style={styles.settingsButtonText}>Bots</Text>
