@@ -108,6 +108,14 @@ export async function listPendingMemory(pool: pg.Pool): Promise<MemoryRow[]> {
   return rows;
 }
 
+/** M6 Memory Center's "rejected" tab — same shape as `listPendingMemory`, the one approval status that had no listing endpoint yet. */
+export async function listRejectedMemory(pool: pg.Pool): Promise<MemoryRow[]> {
+  const { rows } = await pool.query<MemoryRow>(
+    "SELECT * FROM memory_items WHERE approval_status = 'rejected' AND deleted_at IS NULL ORDER BY updated_at DESC",
+  );
+  return rows;
+}
+
 export async function updateMemory(
   pool: pg.Pool,
   id: string,

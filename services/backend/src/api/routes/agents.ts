@@ -29,5 +29,18 @@ export function agentsRouter(pool: pg.Pool, agentRegistry: AgentRegistry): Route
     }
   });
 
+  // M6: Agent Detail's "allowed delegation relationships" — real
+  // `agent_delegation_edges` data (docs/architecture/02-database-schema.md),
+  // not a hardcoded UI list. Reuses the same registry method Master's
+  // runtime context already calls internally.
+  router.get("/:id/delegations", async (req, res, next) => {
+    try {
+      const options = await agentRegistry.getDelegationOptions(req.params.id as string);
+      res.json({ data: options });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

@@ -42,6 +42,7 @@ import {
 } from "./queue/healthRollupJob.js";
 import { createApp } from "./api/app.js";
 import { attachChatGateway } from "./api/ws/chatGateway.js";
+import { attachEventsGateway } from "./api/ws/eventsGateway.js";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -123,10 +124,14 @@ async function main(): Promise<void> {
   const healthRollupWorker = createHealthRollupWorker(pool);
   await scheduleHealthRollupRepeatable(healthRollupQueue);
 
+  // M6: the Bot Engine's own queue joins /health's telemetry (bot-engine
+  // job counts weren't visible there before this milestone).
+  const botEngineQueue = botEngine.getQueue();
+
   const app = createApp({
     pool,
     redis,
-    queues: [eventsRetentionQueue, healthRollupQueue],
+    queues: botEngineQueue ? [eventsRetentionQueue, healthRollupQueue, botEngineQueue] : [eventsRetentionQueue, healthRollupQueue],
     eventBus,
     modelRegistry,
     agentRegistry,
@@ -138,6 +143,7 @@ async function main(): Promise<void> {
   });
   const server = createServer(app);
   attachChatGateway(server, pool);
+  attachEventsGateway(server, pool, eventBus);
 
   server.listen(env.PORT, () => {
     logger.info(`MD AI backend listening on :${env.PORT}`);

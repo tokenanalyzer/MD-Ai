@@ -22,6 +22,7 @@ import { botsRouter } from "./routes/bots.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { userTopicsRouter } from "./routes/userTopics.js";
 import { backgroundCredentialsRouter } from "./routes/backgroundCredentials.js";
+import { eventsRouter } from "./routes/events.js";
 
 export interface AppDeps {
   pool: pg.Pool;
@@ -55,6 +56,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/notifications", notificationsRouter(deps.pool));
   app.use("/user-topics", userTopicsRouter(deps.pool));
   app.use("/background-credentials", backgroundCredentialsRouter(deps.pool));
+  app.use("/events", eventsRouter(deps.pool));
   app.use(
     "/conversations",
     conversationsRouter(deps.pool, deps.eventBus, deps.modelRegistry, deps.agentRegistry, deps.toolRegistry),

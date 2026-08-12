@@ -64,6 +64,11 @@ export class BotEngine {
 
   constructor(private readonly deps: BotEngineDeps) {}
 
+  /** M6: exposes the underlying queue for `/health`'s telemetry report (`core/observability/health.ts`) — undefined until `start()` has run. */
+  getQueue(): Queue | undefined {
+    return this.queue;
+  }
+
   async start(): Promise<void> {
     this.queue = new Queue(BOT_ENGINE_QUEUE_NAME, { connection: getRedisConnection() });
     this.queueEvents = new QueueEvents(BOT_ENGINE_QUEUE_NAME, { connection: getRedisConnection() });

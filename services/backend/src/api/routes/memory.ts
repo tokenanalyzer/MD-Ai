@@ -4,7 +4,7 @@ import type { MemoryEngine } from "@mdai/shared-types";
 import { authGuard } from "../middleware/authGuard.js";
 import { AppError } from "../errors.js";
 import { createMemoryBodySchema, patchMemoryBodySchema, searchMemoryBodySchema } from "../schemas.js";
-import { getMemory, listPendingMemory } from "../../db/repositories/memoryRepo.js";
+import { getMemory, listPendingMemory, listRejectedMemory } from "../../db/repositories/memoryRepo.js";
 
 export function memoryRouter(pool: pg.Pool, memoryEngine: MemoryEngine): Router {
   const router = Router();
@@ -24,6 +24,16 @@ export function memoryRouter(pool: pg.Pool, memoryEngine: MemoryEngine): Router 
   router.get("/pending", async (_req, res, next) => {
     try {
       const rows = await listPendingMemory(pool);
+      res.json({ data: rows });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // M6 Memory Center's "rejected" tab.
+  router.get("/rejected", async (_req, res, next) => {
+    try {
+      const rows = await listRejectedMemory(pool);
       res.json({ data: rows });
     } catch (err) {
       next(err);
