@@ -14,12 +14,15 @@ import { collectTaskStream } from "../helpers/wsClient.js";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { attachChatGateway } from "../../src/api/ws/chatGateway.js";
+import { buildTestAgentRegistry } from "../helpers/appDeps.js";
+import { NO_DELEGATE_CLASSIFICATION, isClassifierRequestBody } from "../helpers/classifierMock.js";
 
 const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, logger });
+const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
 
 let server: Server;
 let wsBaseUrl: string;
@@ -77,6 +80,11 @@ describe("routing modes", () => {
   it("AUTO picks a candidate and reports it via model.selected + task.modelId", async () => {
     mockAgent
       .get("https://api.groq.com")
+      .intercept({ path: "/openai/v1/chat/completions", method: "POST", body: isClassifierRequestBody })
+      .reply(200, sseBody([NO_DELEGATE_CLASSIFICATION]))
+      .persist();
+    mockAgent
+      .get("https://api.groq.com")
       .intercept({ path: "/openai/v1/chat/completions", method: "POST" })
       .reply(200, sseBody(["auto ", "picked"]));
 
@@ -114,6 +122,16 @@ describe("routing modes", () => {
        WHERE id = 'groq/llama-3.3-70b-versatile'`,
     );
 
+    mockAgent
+      .get("https://api.groq.com")
+      .intercept({ path: "/openai/v1/chat/completions", method: "POST", body: isClassifierRequestBody })
+      .reply(200, sseBody([NO_DELEGATE_CLASSIFICATION]))
+      .persist();
+    mockAgent
+      .get("https://integrate.api.nvidia.com")
+      .intercept({ path: "/v1/chat/completions", method: "POST", body: isClassifierRequestBody })
+      .reply(200, sseBody([NO_DELEGATE_CLASSIFICATION]))
+      .persist();
     mockAgent
       .get("https://api.groq.com")
       .intercept({ path: "/openai/v1/chat/completions", method: "POST" })

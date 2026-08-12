@@ -15,10 +15,13 @@ export type TaskState =
   | "failed"
   | "canceled";
 
+export type AgentStatus = "idle" | "active" | "error" | "disabled";
+
 export interface AgentCard {
   id: string;
   displayName: string;
   description: string;
+  version: string;
   /** Free-form capability tags the Model Router / Master Agent can match against, e.g. "research", "vision", "crypto". */
   capabilities: string[];
   /** Task types this agent declares it can handle (used for classification/delegation). */
@@ -27,7 +30,12 @@ export interface AgentCard {
   isInternal: boolean;
   /** Required when isInternal is false — the remote agent's A2A endpoint. */
   externalEndpoint?: string;
-  version: string;
+  /** Preferred task category (docs/architecture/06-provider-model-interfaces.md §3.2) this agent's model calls should route with, e.g. "reasoning" for Research. */
+  modelPreferences?: { taskCategory?: string; preferredProviderId?: string };
+  /** Tool ids this agent expects to use once the MCP host exists (M4) — declared even before any tool is actually connected, so the agent is "tool-ready." */
+  toolRequirements?: string[];
+  status: AgentStatus;
+  lastHeartbeatAt?: string;
 }
 
 export type PartType = "text" | "file" | "data";
@@ -75,6 +83,8 @@ export interface Task {
   id: string;
   conversationId?: string;
   parentTaskId?: string;
+  /** Groups an entire delegation tree (Master + every child task it spawns) under the root task's id — set once, propagated unchanged to every descendant. */
+  correlationId?: string;
   createdByAgentId?: string;
   assignedAgentId: string;
   taskType: string;
@@ -83,6 +93,8 @@ export interface Task {
   output?: Record<string, unknown>;
   error?: TaskError;
   modelId?: string;
+  /** Retry metadata: which attempt this is (bounded — see docs/architecture/04-agent-interfaces.md §7 for the revision-loop cap). */
+  attempt?: number;
   startedAt?: string;
   completedAt?: string;
   createdAt: string;
@@ -96,11 +108,17 @@ export interface Task {
  */
 export interface TaskStreamChunk {
   taskId: string;
-  kind: "token" | "tool_call" | "status" | "message";
+  kind: "token" | "tool_call" | "status" | "message" | "agent_progress";
   delta?: string;
   toolInvocationId?: string;
   message?: TaskMessage;
   state?: TaskState;
+  /**
+   * Safe, human-readable execution status for `kind: "agent_progress"` —
+   * e.g. "Research Agent working…". Never chain-of-thought or raw model
+   * reasoning; see docs/architecture/04-agent-interfaces.md §6.
+   */
+  label?: string;
 }
 
 /** Request to create and dispatch a new task to an agent. */

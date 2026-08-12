@@ -60,6 +60,13 @@ export interface AgentRecoveredEvent {
   type: "agent.recovered";
   agentId: string;
 }
+/** Generic agent lifecycle completion (M3) — distinct from `agent.task.completed`, which is Master's chat-specific event; every agent (Research, Reviewer, future specialists) emits this around `handleTask`. */
+export interface AgentCompletedEvent {
+  type: "agent.completed";
+  agentId: string;
+  taskId: string;
+  durationMs: number;
+}
 export interface AgentMessageSentEvent {
   type: "agent.message.sent";
   fromAgentId: string;
@@ -71,6 +78,86 @@ export interface AgentMessageReceivedEvent {
   toAgentId: string;
   fromAgentId: string;
   taskId: string;
+}
+
+// ---- task.* (M3 — generic A2A task lifecycle, any agent) -------------------
+
+export interface TaskCreatedEvent {
+  type: "task.created";
+  taskId: string;
+  assignedAgentId: string;
+  taskType: string;
+  parentTaskId?: string;
+  correlationId?: string;
+}
+export interface TaskStartedEvent {
+  type: "task.started";
+  taskId: string;
+  assignedAgentId: string;
+}
+export interface TaskCompletedEvent {
+  type: "task.completed";
+  taskId: string;
+  assignedAgentId: string;
+  durationMs: number;
+}
+export interface TaskFailedEvent {
+  type: "task.failed";
+  taskId: string;
+  assignedAgentId: string;
+  errorCode: string;
+  message: string;
+  retryable: boolean;
+}
+export interface TaskCancelledEvent {
+  type: "task.cancelled";
+  taskId: string;
+  reason?: string;
+}
+
+// ---- message.* (M3 — generic inter-agent messages) --------------------------
+
+export interface MessageSentEvent {
+  type: "message.sent";
+  taskId: string;
+  fromAgentId: string;
+  toAgentId: string;
+}
+export interface MessageReceivedEvent {
+  type: "message.received";
+  taskId: string;
+  fromAgentId: string;
+  toAgentId: string;
+}
+
+// ---- review.* (M3 — Reviewer lifecycle) --------------------------------------
+
+export interface ReviewStartedEvent {
+  type: "review.started";
+  taskId: string;
+  targetTaskId: string;
+}
+export interface ReviewCompletedEvent {
+  type: "review.completed";
+  taskId: string;
+  targetTaskId: string;
+  decision: "APPROVE" | "REVISE" | "REJECT";
+}
+
+// ---- memory.* (M3) -----------------------------------------------------------
+
+export interface MemoryCreatedEvent {
+  type: "memory.created";
+  memoryId: string;
+  category: string;
+  approvalStatus: "approved" | "pending" | "rejected";
+}
+export interface MemoryRetrievedEvent {
+  type: "memory.retrieved";
+  taskId: string;
+  /** Count and ids only — never retrieved content, per docs/architecture/07-security-model.md. */
+  count: number;
+  memoryIds: string[];
 }
 
 // ---- tool.* --------------------------------------------------------------
@@ -144,8 +231,20 @@ export type EventPayload =
   | AgentTaskCompletedEvent
   | AgentFailedEvent
   | AgentRecoveredEvent
+  | AgentCompletedEvent
   | AgentMessageSentEvent
   | AgentMessageReceivedEvent
+  | TaskCreatedEvent
+  | TaskStartedEvent
+  | TaskCompletedEvent
+  | TaskFailedEvent
+  | TaskCancelledEvent
+  | MessageSentEvent
+  | MessageReceivedEvent
+  | ReviewStartedEvent
+  | ReviewCompletedEvent
+  | MemoryCreatedEvent
+  | MemoryRetrievedEvent
   | ToolCalledEvent
   | ToolCompletedEvent
   | ModelSelectedEvent

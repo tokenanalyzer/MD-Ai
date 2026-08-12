@@ -72,3 +72,44 @@ export const createConversationBodySchema = z.object({
 export const cancelTaskBodySchema = z.object({
   reason: z.string().max(500).optional(),
 });
+
+// ---- M3: memory --------------------------------------------------------------
+
+export const memoryCategorySchema = z.enum([
+  "personal_context",
+  "projects",
+  "goals",
+  "preferences",
+  "decisions",
+  "research",
+  "knowledge",
+  "conversations",
+  "agent_lessons",
+]);
+
+export const createMemoryBodySchema = z.object({
+  category: memoryCategorySchema,
+  content: z.string().min(1).max(4000),
+  tags: z.array(z.string()).optional(),
+  pinned: z.boolean().optional(),
+  importance: z.number().min(0).max(1).optional(),
+});
+
+export const patchMemoryBodySchema = z.object({
+  content: z.string().min(1).max(4000).optional(),
+  tags: z.array(z.string()).optional(),
+  pinned: z.boolean().optional(),
+  importance: z.number().min(0).max(1).optional(),
+});
+
+export const searchMemoryBodySchema = z.object({
+  query: z.string().min(1),
+  category: memoryCategorySchema.optional(),
+  topK: z.number().int().min(1).max(20).optional(),
+});
+
+// ---- M3: agents ----------------------------------------------------------------
+
+export const patchAgentBodySchema = z.object({
+  enabled: z.boolean(),
+});

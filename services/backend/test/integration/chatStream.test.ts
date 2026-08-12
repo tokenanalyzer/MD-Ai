@@ -14,12 +14,15 @@ import { ensureOwner } from "../../src/db/repositories/ownerRepo.js";
 import { generatePairingCode } from "../../src/core/security/pairing.js";
 import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
 import { collectTaskStream } from "../helpers/wsClient.js";
+import { buildTestAgentRegistry } from "../helpers/appDeps.js";
+import { NO_DELEGATE_CLASSIFICATION, isClassifierRequestBody } from "../helpers/classifierMock.js";
 
 const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, logger });
+const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
 
 let server: Server;
 let baseUrl: string;
@@ -73,6 +76,11 @@ describe("chat: full REST + WS pipeline against a real backend + real DB", () =>
   it("streams a completion end-to-end and persists the final message", async () => {
     mockAgent
       .get("https://api.groq.com")
+      .intercept({ path: "/openai/v1/chat/completions", method: "POST", body: isClassifierRequestBody })
+      .reply(200, sseBody([NO_DELEGATE_CLASSIFICATION]))
+      .persist();
+    mockAgent
+      .get("https://api.groq.com")
       .intercept({ path: "/openai/v1/chat/completions", method: "POST" })
       .reply(200, sseBody(["MD AI ", "is online."]));
 
@@ -101,14 +109,26 @@ describe("chat: full REST + WS pipeline against a real backend + real DB", () =>
 
     const events = await pool.query("SELECT event_type FROM events WHERE task_id = $1 ORDER BY id", [taskId]);
     expect(events.rows.map((r) => r.event_type)).toEqual([
-      "agent.task.created",
-      "agent.task.started",
+      "task.created",
+      "task.started",
+      "agent.started",
       "model.selected",
-      "agent.task.completed",
+      "task.completed",
+      "agent.completed",
     ]);
   });
 
   it("falls back to the second configured provider end-to-end when the first fails", async () => {
+    mockAgent
+      .get("https://api.groq.com")
+      .intercept({ path: "/openai/v1/chat/completions", method: "POST", body: isClassifierRequestBody })
+      .reply(200, sseBody([NO_DELEGATE_CLASSIFICATION]))
+      .persist();
+    mockAgent
+      .get("https://openrouter.ai")
+      .intercept({ path: "/api/v1/chat/completions", method: "POST", body: isClassifierRequestBody })
+      .reply(200, sseBody([NO_DELEGATE_CLASSIFICATION]))
+      .persist();
     mockAgent.get("https://api.groq.com").intercept({ path: "/openai/v1/chat/completions", method: "POST" }).reply(500, "server error");
     mockAgent
       .get("https://openrouter.ai")

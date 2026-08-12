@@ -23,12 +23,13 @@ function getOrCreate(taskId: string): HubEntry {
 }
 
 /**
- * Per-task in-process pub/sub bridging the async-generator chat pipeline
- * (core/agents/masterAgent.ts) to WebSocket clients on `/ws/tasks/:id`
+ * Per-task in-process pub/sub bridging the agent runtime's `emit()` calls
+ * (core/agents/runtimeContext.ts, driving core/agents/master/masterAgent.ts)
+ * to WebSocket clients on `/ws/tasks/:id`
  * (docs/architecture/03-api-contracts.md §2). A REST POST creates the task
- * and starts the generator immediately; the WS connection can attach a
- * moment later and still catch the buffered chunks-so-far, so the two
- * steps don't have to land in the same millisecond.
+ * and starts the Master Agent dispatch immediately; the WS connection can
+ * attach a moment later and still catch the buffered chunks-so-far, so the
+ * two steps don't have to land in the same millisecond.
  */
 export function publishChunk(taskId: string, chunk: TaskStreamChunk): void {
   const entry = getOrCreate(taskId);

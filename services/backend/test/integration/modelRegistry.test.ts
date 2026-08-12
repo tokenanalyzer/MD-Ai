@@ -11,12 +11,14 @@ import { ensureOwner } from "../../src/db/repositories/ownerRepo.js";
 import { generatePairingCode } from "../../src/core/security/pairing.js";
 import { insertModelCallSample, computeHealthRollup, applyHealthRollup } from "../../src/db/repositories/modelRegistryRepo.js";
 import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
+import { buildTestAgentRegistry } from "../helpers/appDeps.js";
 
 const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);
 const logger = pino({ level: "silent" });
 const modelRegistry = new ModelRegistryService(pool);
-const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, logger });
+const { agentRegistry, memoryEngine } = buildTestAgentRegistry(pool);
+const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, logger });
 
 let mockAgent: MockAgent;
 let originalDispatcher: Dispatcher;

@@ -1,6 +1,4 @@
-import type { AgentCard, Task, TaskMessage, TaskStreamChunk } from "../a2a/index.js";
-
-export type AgentStatus = "idle" | "active" | "error" | "disabled";
+import type { AgentCard, AgentStatus, Task, TaskMessage, TaskStreamChunk } from "../a2a/index.js";
 
 export interface AgentRuntimeContext {
   task: Task;
@@ -10,11 +8,18 @@ export interface AgentRuntimeContext {
   /** Requests the Model Router to pick a model for a sub-step of this task. */
   selectModel(criteria: {
     taskType: string;
+    taskCategory?: string;
     requiredCapabilities?: string[];
-  }): Promise<{ modelId: string }>;
-  /** Invokes an approved tool through the MCP host (never calls a tool directly). */
+  }): Promise<{ modelId: string; providerId: string }>;
+  /** Runs a (non-streaming) chat completion against the selected model — used by agents that need one shot at structured output, not a token stream to the user. */
+  completeChat(input: {
+    messages: { role: "system" | "user" | "assistant"; content: string }[];
+    taskCategory?: string;
+    preferredModelId?: string;
+  }): Promise<{ text: string; modelId: string; providerId: string }>;
+  /** Invokes an approved tool through the MCP host (never calls a tool directly). Throws ToolNotAvailableError until the MCP host exists (M4). */
   callTool(toolId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  /** Delegates a sub-task to another agent via the A2A layer. */
+  /** Delegates a sub-task to another agent via the A2A layer. Rejects if no `agent_delegation_edges` row authorizes this delegation. */
   delegate(toAgentId: string, input: Record<string, unknown>, taskType: string): Promise<Task>;
 }
 
@@ -41,7 +46,13 @@ export interface AgentRegistry {
   setEnabled(agentId: string, enabled: boolean): Promise<void>;
   /** Reads the `agent_delegation_edges` table — never a hard-coded map. */
   getDelegationOptions(agentId: string): Promise<AgentCard[]>;
+  /** True only if an `agent_delegation_edges` row explicitly authorizes fromAgentId → toAgentId. */
+  isDelegationAuthorized(fromAgentId: string, toAgentId: string): Promise<boolean>;
+  /** Capability-based discovery — "Master identifies required capability → queries Agent Registry → selects suitable agent," never a hard-coded map. */
+  findByCapability(capability: string): Promise<AgentCard[]>;
+  recordHeartbeat(agentId: string, status: AgentStatus): Promise<void>;
 }
 
 export * from "../a2a/index.js";
 export * from "../mcp/index.js";
+export * from "./contracts.js";

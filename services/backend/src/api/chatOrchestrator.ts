@@ -1,77 +1,77 @@
 import type pg from "pg";
-import type { ChatMessage, ModelRegistry, RoutingMode, TaskCategory } from "@mdai/shared-types";
+import type { AgentRegistry, ModelRegistry } from "@mdai/shared-types";
 import type { EventBus } from "../core/events/eventBus.js";
-import type { TaskRow } from "../db/repositories/taskRepo.js";
-import { updateTaskState } from "../db/repositories/taskRepo.js";
-import { runMasterAgentChat } from "../core/agents/masterAgent.js";
+import { cancelTaskCascade, getTask, type TaskRow } from "../db/repositories/taskRepo.js";
+import { buildRuntimeContext } from "../core/agents/runtimeContext.js";
 import { publishChunk, finishTask } from "./ws/chatStreamHub.js";
 
-export interface StartMasterAgentTaskInput {
+export interface DispatchMasterAgentTaskInput {
   pool: pg.Pool;
   eventBus: EventBus;
   modelRegistry: ModelRegistry;
+  agentRegistry: AgentRegistry;
   task: TaskRow;
-  messages: ChatMessage[];
   providerKeys: Record<string, string>;
-  preferredProviderId?: string;
-  preferredModelId?: string;
-  taskCategory?: TaskCategory;
-  routingMode?: RoutingMode;
 }
 
 const canceledTaskIds = new Set<string>();
 
 /**
- * Marks a task canceled. M1 cancellation is best-effort: it stops the
- * chunk stream reaching the client and marks the task row `canceled`
- * (docs/architecture/03-api-contracts.md §2), but does not yet thread an
- * AbortSignal into the in-flight provider fetch — the outbound HTTP
- * request may finish server-side even though nothing further is
- * delivered or persisted. True request-level abort is a documented M2
- * fast-follow, not silently pretended to work today.
+ * Marks a task canceled. Cancellation is best-effort: it stops the chunk
+ * stream reaching the client and, once Master's `streamChat` next checks
+ * in, marks the task row (and every in-flight descendant in its
+ * delegation tree — M3.4) `canceled`, but does not thread an AbortSignal
+ * into the in-flight provider fetch — the outbound HTTP request may
+ * finish server-side even though nothing further is delivered or
+ * persisted (docs/architecture/03-api-contracts.md §2).
  */
 export function requestCancel(taskId: string): void {
   canceledTaskIds.add(taskId);
 }
 
 /**
- * Fires the Master Agent chat pipeline in the background and bridges its
- * chunks onto the per-task stream hub. `providerKeys` lives only inside
- * this function's closure for the duration of the run — once this
- * async IIFE returns, nothing in the process still references it
+ * Dispatches the Master Agent's `handleTask` in the background and
+ * bridges its `emit()` calls (already wired to `publishChunk` inside
+ * `buildRuntimeContext`) plus a final terminal `status` chunk onto the
+ * per-task stream hub. `providerKeys` lives only inside this function's
+ * closure for the duration of the run — once this async IIFE returns,
+ * nothing in the process still references it
  * (docs/architecture/07-security-model.md §3.2).
  */
-export function startMasterAgentTask(input: StartMasterAgentTaskInput): void {
-  const { task, pool } = input;
+export function dispatchMasterAgentTask(input: DispatchMasterAgentTaskInput): void {
+  const { task, pool, eventBus, modelRegistry, agentRegistry, providerKeys } = input;
   void (async () => {
+    let finalState: "completed" | "failed" | "canceled" = "completed";
     try {
-      for await (const chunk of runMasterAgentChat({
-        pool,
-        eventBus: input.eventBus,
-        modelRegistry: input.modelRegistry,
+      const master = await agentRegistry.get("master");
+      if (!master) throw new Error("Master agent has no running implementation registered");
+
+      const ctx = await buildRuntimeContext(
+        {
+          pool,
+          eventBus,
+          modelRegistry,
+          agentRegistry,
+          providerKeys,
+          rootTaskId: task.id,
+          isCanceled: () => canceledTaskIds.has(task.id),
+        },
         task,
-        messages: input.messages,
-        providerKeys: input.providerKeys,
-        preferredProviderId: input.preferredProviderId,
-        preferredModelId: input.preferredModelId,
-        taskCategory: input.taskCategory,
-        routingMode: input.routingMode,
-      })) {
-        if (canceledTaskIds.has(task.id)) {
-          await updateTaskState(pool, task.id, { state: "canceled", completedAt: true });
-          publishChunk(task.id, { taskId: task.id, kind: "status", state: "canceled" });
-          break;
-        }
-        publishChunk(task.id, { taskId: task.id, kind: "token", delta: chunk.delta });
-      }
-      if (!canceledTaskIds.has(task.id)) {
-        publishChunk(task.id, { taskId: task.id, kind: "status", state: "completed" });
-      }
+        "master",
+      );
+      await master.handleTask(ctx);
+
+      const finalRow = await getTask(pool, task.id);
+      finalState = finalRow?.state === "failed" ? "failed" : finalRow?.state === "canceled" ? "canceled" : "completed";
     } catch {
       // The error itself is already persisted onto the task row and
-      // emitted as an agent.failed event by runMasterAgentChat.
-      publishChunk(task.id, { taskId: task.id, kind: "status", state: "failed" });
+      // emitted as a task.failed/agent.failed event by the runtime context.
+      finalState = "failed";
     } finally {
+      if (finalState === "canceled") {
+        await cancelTaskCascade(pool, task.correlation_id ?? task.id);
+      }
+      publishChunk(task.id, { taskId: task.id, kind: "status", state: finalState });
       canceledTaskIds.delete(task.id);
       finishTask(task.id);
     }

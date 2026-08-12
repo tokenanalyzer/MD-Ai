@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type pg from "pg";
-import type { ChatMessage, ModelRegistry } from "@mdai/shared-types";
+import type { AgentRegistry, ChatMessage, ModelRegistry } from "@mdai/shared-types";
 import type { EventBus } from "../../core/events/eventBus.js";
 import { authGuard } from "../middleware/authGuard.js";
 import { AppError } from "../errors.js";
@@ -13,9 +13,10 @@ import {
   listConversations,
   listTaskMessages,
   listTasksForConversation,
+  patchTaskInput,
   type TaskRow,
 } from "../../db/repositories/taskRepo.js";
-import { startMasterAgentTask } from "../chatOrchestrator.js";
+import { dispatchMasterAgentTask } from "../chatOrchestrator.js";
 
 const SYSTEM_PROMPT =
   "You are the Master Agent inside MD AI, a private single-user personal intelligence system. " +
@@ -52,7 +53,12 @@ async function buildConversationHistory(pool: pg.Pool, conversationId: string): 
   return messages;
 }
 
-export function conversationsRouter(pool: pg.Pool, eventBus: EventBus, modelRegistry: ModelRegistry): Router {
+export function conversationsRouter(
+  pool: pg.Pool,
+  eventBus: EventBus,
+  modelRegistry: ModelRegistry,
+  agentRegistry: AgentRegistry,
+): Router {
   const router = Router();
   router.use(authGuard(pool));
 
@@ -116,37 +122,56 @@ export function conversationsRouter(pool: pg.Pool, eventBus: EventBus, modelRegi
       if (body.routingMode === "manual" && !body.preferredProviderId) {
         throw AppError.badRequest("routingMode 'manual' requires preferredProviderId");
       }
+      const currentUserText = body.parts.map((p) => p.text).join("\n");
+
       const task = await createTask(pool, {
         conversationId: conversation.id,
         assignedAgentId: "master",
         taskType: "chat",
-        inputPayload: { parts: body.parts },
+        inputPayload: {
+          parts: body.parts,
+          currentUserText,
+          preferredProviderId: body.preferredProviderId,
+          preferredModelId: body.preferredModelId,
+          taskCategory: body.taskCategory,
+          routingMode: body.routingMode,
+        },
       });
       await addTaskMessage(pool, { taskId: task.id, role: "user", parts: body.parts });
       await eventBus.publish({
         sourceType: "agent",
         sourceId: "master",
         taskId: task.id,
-        payload: { type: "agent.task.created", agentId: "master", taskId: task.id, taskType: task.task_type },
+        payload: {
+          type: "task.created",
+          taskId: task.id,
+          assignedAgentId: "master",
+          taskType: task.task_type,
+          correlationId: task.correlation_id ?? undefined,
+        },
       });
 
+      // Master reads its full request-scoped input (routing preferences,
+      // the full message list to synthesize from) off the task row rather
+      // than through extra handleTask() arguments, since `Agent.handleTask`
+      // only takes an `AgentRuntimeContext` — see
+      // core/agents/master/masterAgent.ts. The message list can only be
+      // assembled now, once this task's own just-added user message is
+      // visible to buildConversationHistory.
       const history = await buildConversationHistory(pool, conversation.id);
-      const messages: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }, ...history];
+      const conversationMessages: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }, ...history];
+      const finalTask = await patchTaskInput(pool, task.id, { conversationMessages });
 
-      startMasterAgentTask({
+      dispatchMasterAgentTask({
         pool,
         eventBus,
         modelRegistry,
-        task,
-        messages,
+        agentRegistry,
+        task: finalTask,
         providerKeys: body.providerKeys,
-        preferredProviderId: body.preferredProviderId,
-        preferredModelId: body.preferredModelId,
-        taskCategory: body.taskCategory,
-        routingMode: body.routingMode,
       });
 
-      res.status(201).json({ data: toTaskDto(task) });
+      res.status(201).json({ data: toTaskDto(finalTask) });
     } catch (err) {
       next(err);
     }

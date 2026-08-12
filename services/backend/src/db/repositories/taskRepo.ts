@@ -13,6 +13,7 @@ export interface TaskRow {
   id: string;
   conversation_id: string | null;
   parent_task_id: string | null;
+  correlation_id: string | null;
   created_by_agent: string | null;
   assigned_agent_id: string;
   task_type: string;
@@ -21,6 +22,7 @@ export interface TaskRow {
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   model_id: string | null;
+  attempt: number;
   started_at: Date | null;
   completed_at: Date | null;
   created_at: Date;
@@ -62,18 +64,46 @@ export async function createTask(
   pool: pg.Pool,
   input: {
     conversationId?: string;
+    parentTaskId?: string;
+    /** Root of the delegation tree this task belongs to. Omit only for a true root task — it then defaults to its own id. */
+    correlationId?: string;
+    createdByAgent?: string;
     assignedAgentId: string;
     taskType: string;
     inputPayload: Record<string, unknown>;
+    attempt?: number;
   },
 ): Promise<TaskRow> {
+  // correlation_id defaults to the task's own id for a root task; Postgres
+  // can't reference a row's own generated id within the same INSERT, so a
+  // root task gets a temporary random correlation_id here and is
+  // corrected to point at itself in the follow-up UPDATE below.
   const { rows } = await pool.query<TaskRow>(
-    `INSERT INTO tasks (conversation_id, assigned_agent_id, task_type, input, state)
-     VALUES ($1, $2, $3, $4, 'submitted') RETURNING *`,
-    [input.conversationId ?? null, input.assignedAgentId, input.taskType, input.inputPayload],
+    `INSERT INTO tasks (conversation_id, parent_task_id, correlation_id, created_by_agent, assigned_agent_id, task_type, input, attempt, state)
+     VALUES ($1, $2, COALESCE($3, gen_random_uuid()), $4, $5, $6, $7, $8, 'submitted')
+     RETURNING *`,
+    [
+      input.conversationId ?? null,
+      input.parentTaskId ?? null,
+      input.correlationId ?? null,
+      input.createdByAgent ?? null,
+      input.assignedAgentId,
+      input.taskType,
+      input.inputPayload,
+      input.attempt ?? 1,
+    ],
   );
-  const row = rows[0];
+  let row = rows[0];
   if (!row) throw new Error("Failed to create task");
+  if (!input.correlationId) {
+    // Root task: correlation_id should equal its own id, not the random
+    // placeholder generated above.
+    const updated = await pool.query<TaskRow>(
+      "UPDATE tasks SET correlation_id = id WHERE id = $1 RETURNING *",
+      [row.id],
+    );
+    row = updated.rows[0] ?? row;
+  }
   return row;
 }
 
@@ -114,6 +144,22 @@ export async function updateTaskState(
   return row;
 }
 
+/**
+ * Merges additional fields onto a task's `input` payload after creation —
+ * used for the root chat task, whose full synthesis input (conversation
+ * history) can only be assembled once the task row (and its just-added
+ * user message) already exist.
+ */
+export async function patchTaskInput(pool: pg.Pool, id: string, patch: Record<string, unknown>): Promise<TaskRow> {
+  const { rows } = await pool.query<TaskRow>(
+    "UPDATE tasks SET input = input || $2::jsonb, updated_at = now() WHERE id = $1 RETURNING *",
+    [id, patch],
+  );
+  const row = rows[0];
+  if (!row) throw new Error(`Task ${id} not found`);
+  return row;
+}
+
 export async function getTask(pool: pg.Pool, id: string): Promise<TaskRow | undefined> {
   const { rows } = await pool.query<TaskRow>("SELECT * FROM tasks WHERE id = $1", [id]);
   return rows[0];
@@ -125,6 +171,30 @@ export async function listTasksForConversation(pool: pg.Pool, conversationId: st
     [conversationId],
   );
   return rows;
+}
+
+/** Every task in the same delegation tree (root + all descendants), oldest first. */
+export async function listTasksByCorrelation(pool: pg.Pool, correlationId: string): Promise<TaskRow[]> {
+  const { rows } = await pool.query<TaskRow>(
+    "SELECT * FROM tasks WHERE correlation_id = $1 ORDER BY created_at",
+    [correlationId],
+  );
+  return rows;
+}
+
+/**
+ * Cancels a task and every still-in-flight descendant in its delegation
+ * tree (M3.4: cancellation must propagate — canceling Master's top-level
+ * task shouldn't leave an orphaned Research/Reviewer task running).
+ */
+export async function cancelTaskCascade(pool: pg.Pool, correlationId: string): Promise<string[]> {
+  const { rows } = await pool.query<{ id: string }>(
+    `UPDATE tasks SET state = 'canceled', completed_at = now(), updated_at = now()
+     WHERE correlation_id = $1 AND state IN ('submitted', 'working', 'input-required')
+     RETURNING id`,
+    [correlationId],
+  );
+  return rows.map((r) => r.id);
 }
 
 export async function addTaskMessage(

@@ -8,6 +8,11 @@ import { listActiveSessions } from "./db/repositories/deviceSessionRepo.js";
 import { generatePairingCode } from "./core/security/pairing.js";
 import { EventBus } from "./core/events/eventBus.js";
 import { ModelRegistryService } from "./core/registry/modelRegistryService.js";
+import { AgentRegistryService } from "./core/agents/agentRegistryService.js";
+import { MemoryEngineService } from "./core/memory/memoryEngine.js";
+import { createResearchAgent } from "./core/agents/research/researchAgent.js";
+import { createReviewerAgent } from "./core/agents/reviewer/reviewerAgent.js";
+import { createMasterAgent } from "./core/agents/master/masterAgent.js";
 import { getRedisConnection, closeRedisConnection } from "./queue/connection.js";
 import {
   createEventsRetentionQueue,
@@ -41,6 +46,18 @@ async function main(): Promise<void> {
   const redis = getRedisConnection();
   const eventBus = new EventBus(pool);
   const modelRegistry = new ModelRegistryService(pool);
+  const agentRegistry = new AgentRegistryService(pool);
+  const memoryEngine = new MemoryEngineService(pool);
+
+  // M3 roster: Master, Research, Reviewer — see docs/architecture/
+  // 04-agent-interfaces.md for why the full specialist-agent ecosystem
+  // waits for a later milestone. Registration order doesn't matter: the
+  // Agent Registry's DB-backed `agent_delegation_edges` rows, not
+  // in-process load order, are what authorize Master to delegate to the
+  // other two.
+  agentRegistry.register(createResearchAgent());
+  agentRegistry.register(createReviewerAgent());
+  agentRegistry.register(createMasterAgent({ agentRegistry, memoryEngine }));
 
   const eventsRetentionQueue = createEventsRetentionQueue();
   const eventsRetentionWorker = createEventsRetentionWorker(pool);
@@ -56,6 +73,8 @@ async function main(): Promise<void> {
     queues: [eventsRetentionQueue, healthRollupQueue],
     eventBus,
     modelRegistry,
+    agentRegistry,
+    memoryEngine,
     logger,
   });
   const server = createServer(app);
