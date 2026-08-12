@@ -12,7 +12,7 @@
       "package": "ai.mdai.app",
       "backgroundColor": "#0a0d0c"
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": ["expo-router", "expo-secure-store", "expo-dev-client", "expo-notifications"],
     "extra": {
       "mdaiBackendUrl": "http://10.0.2.2:8080"
     }

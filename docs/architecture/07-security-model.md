@@ -318,3 +318,69 @@ verified where.
   `safeFetch`/`safeFetchBinary`'s streamed `maxBytes`) — no oversized page
   or file content reaches an LLM context or gets buffered unbounded in
   memory.
+
+## 11. M5: Bot Engine + opt-in background credential vault security guarantees
+
+Full design lives in `12-bot-engine.md` — this section is the security-
+model-level summary.
+
+- **Bots are deterministic and never hold an LLM/tool credential
+  directly.** A `BotDefinition.run()` receives only `config`/`signal`/
+  `callSearchProvider()` (`packages/shared-types/src/bots/index.ts`'s
+  `BotRunContext`) — no `completeChat`, no raw API key. `callSearchProvider`
+  resolves a key internally (request-scoped `toolKeys` when a call
+  originates from a live request context, the background vault when
+  running unattended) and hands the bot only the search results.
+- **§3.4's anticipated mechanism is now built, and stayed exactly as
+  scoped there: a separate table, explicit per-credential opt-in, never a
+  silent default.** `background_credentials` (migration `0020`) is
+  disjoint from `provider_configs` — no code path copies a value from one
+  into the other. Populated only via `PUT /background-credentials`, which
+  the owner calls from the phone naming one specific `credentialId`.
+- **Envelope encryption, not a single flat secret.** `core/security/
+  backgroundKeyVault.ts`: a random per-credential DEK encrypts the actual
+  key (AES-256-GCM); the DEK itself is wrapped under a single process KEK
+  that lives only in `MDAI_BACKGROUND_KEY_KEK` and is never written to
+  Postgres. A stolen DB dump alone yields nothing usable. Verified by
+  `test/unit/backgroundKeyVault.test.ts` (round-trip, wrong-KEK failure,
+  32-byte KEK validation, distinct ciphertext per encryption) and
+  `test/integration/backgroundCredentials.test.ts` (the REST surface
+  never echoes plaintext back, and the raw DB row never contains it
+  either).
+- **Decrypted only at the moment of use, same discipline as request-scoped
+  `providerKeys`/`toolKeys`.** `escalateFinding()`/`callSearchProviderForBot()`
+  build the credential map inline, pass it straight into the same runtime
+  context / `SearchProvider.search()` call, and let the reference go out
+  of scope when that call returns — never assigned to a module-level
+  variable, never cached. Verified end-to-end in
+  `test/integration/botEscalation.test.ts`: the plaintext background key
+  never appears in any `events`/`tasks` row produced by an escalation.
+- **Escalation never bypasses the Agent Registry.** `core/bots/
+  escalation.ts` dispatches into Master's *existing* `buildRuntimeContext`
+  + `handleTask` entry point — the identical code path a chat message
+  uses — so Master's own capability-discovery/delegation authorization
+  (`agent_delegation_edges`) governs every escalated finding exactly as
+  it governs a user's question. There is no bot-specific routing table
+  that could diverge from it.
+- **A finding is a signal, never treated as ground truth by the
+  notification layer.** `core/bots/pipeline.ts` only escalates a finding
+  to Master when its deterministic importance clears
+  `ESCALATION_MIN_IMPORTANCE` (M5.6) — most findings never trigger an LLM
+  call at all — and the notification ultimately sent still carries the
+  bot's own deterministic title/summary if escalation was skipped,
+  unavailable, or failed (never blocked on a model call succeeding).
+- **Notifications are never spam by default.** `notification_preferences`
+  defaults to `minimum_importance = 'high'` with no quiet hours and no
+  muted lists — "default conservative" per instruction — and every
+  finding that reaches the notification layer gets a `notifications` row
+  regardless of outcome (`sent`/`failed`/`suppressed` with a specific
+  reason), so filtering is auditable rather than a silent drop. Verified
+  by `test/integration/notificationPreferences.test.ts`.
+- **Bounded resource usage, enforced structurally, not by convention.**
+  The Bot Engine's BullMQ worker caps global concurrency (2) and rate
+  (20/min) regardless of how many bots are registered or how many findings
+  they produce; a per-bot `timeout_ms` bounds any single run via
+  `AbortController`, and a periodic sweep reclaims a run a crashed worker
+  left stuck. Verified against real Redis in
+  `test/integration/botEngine.test.ts`'s concurrency/timeout/stuck-run
+  cases.

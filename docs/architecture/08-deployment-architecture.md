@@ -47,6 +47,37 @@ model registry/routing (M2) end-to-end, and nothing beyond it:
   M1). This is itself a telemetry value (§9.1) so growth is visible as
   later milestones add bots.
 
+### 2.2 M5: the Bot Engine's real resource footprint
+
+The Bot Engine adds exactly one more in-process BullMQ worker (worker
+count: 3 as of M5), not one process per bot — see `12-bot-engine.md` §3.
+Its own resource discipline is structural, not just documentation:
+
+- **Bounded concurrency**: at most 2 bot runs execute at once, process-
+  wide, regardless of how many bots are registered or enabled
+  (`core/bots/botEngine.ts`'s `MAX_CONCURRENT_BOT_RUNS`) — verified
+  against real Redis in `test/integration/botEngine.test.ts`.
+- **Bounded rate**: at most 20 runs/minute across all bots
+  (`MAX_RUNS_PER_MINUTE`), a second independent cap beyond concurrency.
+- **Bounded duration**: every bot has its own `timeout_ms` (15–30s for
+  the four M5 bots), enforced via `AbortController`.
+- **Schedule cadence, by bot**: AI/Model Release Monitor and News
+  Monitor every 30 minutes, User Topic Monitor every 15 minutes, System
+  Health Monitor every 5 minutes — none of the four bots run continuously
+  or hold an open connection between runs.
+- **No new persistent connections**: bots reuse the same `pg.Pool`/Redis
+  connection the rest of the backend already holds; `System Health
+  Monitor`'s own checks (`SELECT 1`, `PING`, `getJobCounts()`) are the
+  only bot work that touches Postgres/Redis directly, and each is a
+  single round-trip.
+- **Local (non-Oracle) measurement**: not yet captured on real Oracle
+  hardware — this sandbox has no way to provision or measure against the
+  actual 2 OCPU/12GB target. What's verified here is the *design*
+  (fixed, code-enforced bounds — see the constants table in
+  `12-bot-engine.md` §4) and correctness under load in this
+  environment's local Postgres/Redis, not absolute Oracle-hardware
+  numbers. Flagged as a known limitation in the M5 completion report.
+
 ## 3. Container topology
 
 ```

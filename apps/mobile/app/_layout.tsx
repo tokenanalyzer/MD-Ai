@@ -5,14 +5,26 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors } from "../src/theme/tokens";
 import { useSessionStore } from "../src/state/sessionStore";
+import { registerForPushNotificationsAsync } from "../src/notifications/registerPushToken";
 
 export default function RootLayout() {
   const hydrate = useSessionStore((s) => s.hydrate);
+  const accessToken = useSessionStore((s) => s.accessToken);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     hydrate().finally(() => setReady(true));
   }, [hydrate]);
+
+  useEffect(() => {
+    // Best-effort, never blocks startup or the chat flow (M5.13) — a
+    // denied permission or an emulator/Expo-Go environment just means no
+    // push notifications, not a crash. Re-registers on every cold start
+    // since push tokens rotate.
+    if (accessToken) {
+      void registerForPushNotificationsAsync().catch(() => {});
+    }
+  }, [accessToken]);
 
   if (!ready) {
     return (

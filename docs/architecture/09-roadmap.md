@@ -168,13 +168,63 @@ those changes are folded into the doc set as of M1.
   (non-Oracle) per-tool latency measurement in
   `08-deployment-architecture.md` §9.3.
 
-## M5 — Bot Engine + notifications
-- `core/bots` scheduler (BullMQ), first bots: `price-monitor`,
-  `news-monitor`, `notification-worker`.
-- Bot → Agent escalation path end-to-end (`bot_findings.routed_task_id`).
-- Android push notifications (FCM) for bot alerts and long-running task
-  completion — this is also the first proof that "backend keeps working
-  with the app closed" actually holds.
+## M5 — Bot Engine + notifications — **delivered**
+- DNS-rebinding SSRF gap closed (M5.0): `core/security/ssrfSafeDispatcher.ts`
+  re-validates the resolved address at the exact moment Node opens the
+  socket (connect-time, not just pre-check), installed process-wide at
+  boot. Second `SearchProvider` (Tavily) added alongside Brave, proving
+  Research Agent isn't coupled to one vendor.
+- Bot Registry (`core/bots/botRegistryService.ts`, migration `0020`):
+  DB-backed, same split as the Agent/Tool Registries — no hardcoded bot
+  list anywhere in the scheduler.
+- Bot Engine (`core/bots/botEngine.ts`): one shared, bounded BullMQ worker
+  (max 2 concurrent runs, 20/min rate limit — Oracle's 2 OCPU/12GB target)
+  for every bot's scheduled and run-once execution, never one process per
+  bot. Per-bot timeout via `AbortController`, BullMQ attempts/backoff for
+  retries, a periodic sweep marks runs stuck past their timeout.
+- `BotRun`/`BotFinding` models: a finding is a normalized signal
+  (category/title/summary/importance/confidence/dedup key/status/
+  escalation status) — explicitly not a final AI answer.
+- Deterministic dedup (`UNIQUE(bot_id, dedup_key)` + importance-scaled
+  cooldown) and a fixed LOW/MEDIUM/HIGH/CRITICAL importance gate evaluated
+  *before* any LLM call.
+- Four bots, exactly the set instructed: AI/Model Release Monitor, News
+  Monitor (via the existing `SearchProvider` abstraction), User Topic
+  Monitor (owner-configured topics), System Health Monitor (deterministic
+  Postgres/Redis/memory/CPU/queue-depth/provider-availability checks). No
+  trading bots, no exchange execution.
+- Agent escalation (`core/bots/escalation.ts`): a finding that clears the
+  importance gate dispatches into Master's *existing* capability-discovery
+  and delegation pipeline — the same entry point a chat message uses,
+  never a bot-specific routing bypass.
+- Opt-in background credential vault (M5.12a, `core/security/
+  backgroundKeyVault.ts`): the mechanism `07-security-model.md` §3.4
+  anticipated, now built — envelope AES-256-GCM encryption, KEK from
+  `MDAI_BACKGROUND_KEY_KEK` (never in the DB), covers both LLM provider
+  keys and search provider keys, populated only when the owner explicitly
+  opts a provider into "background use" from the phone. Absent by
+  default; bots keep running deterministically either way.
+- Push notifications (Expo push service → FCM on Android) + owner-
+  controlled preferences (minimum importance defaulting to HIGH, quiet
+  hours, muted topics/bots/categories) — every finding gets a
+  `notifications` row regardless of outcome, so suppression is auditable,
+  not silent.
+- Full `bot.*`/`notification.*` event catalog added to the shared
+  `EventPayload` union (`05-event-schemas.md`).
+- Mobile Bot Fleet screen (`app/(bots)`) — not the 3D Command Center:
+  active/paused bots, health, last/last-successful run, findings, and
+  enable/disable/pause/resume/run-now controls.
+- 41 new M5 tests (DNS-rebinding connect-time enforcement, second
+  SearchProvider resolution, background-vault encryption round-trip and
+  REST surface, bot run lifecycle incl. timeout/failure, bounded
+  concurrency against real Redis, retry/backoff against real BullMQ,
+  row-level and pipeline-level dedup, agent escalation with/without a
+  configured background credential, notification preference filtering
+  incl. quiet hours and FCM failure handling, System Health Monitor
+  against a real forced breach, Bot Registry/Fleet REST surface) — full
+  suite **192/192 passing, zero regressions** across M1–M5.
+- See `docs/architecture/12-bot-engine.md` for the full design and the
+  M5 completion report for the 15-point summary.
 
 ## M6 — Event streaming + 2D Command Center
 - `core/events` bus + `/ws/events` gateway with resume-by-cursor.

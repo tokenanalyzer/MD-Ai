@@ -60,7 +60,15 @@ Command Center show a coherent timeline after the phone was asleep.
 | `tool.timeout` (M4) | MCP host, the tool's own `timeoutMs` elapsed | Tool node error glow with a timeout-specific reason |
 | `tool.blocked` (M4) | MCP host, permission denied or an SSRF/security guard refused the call | Tool node blocked-state glow; `reason` is safe to show (never a secret) |
 | `model.selected` / `model.switched` | Model Router | Provider/model badge on the task path; switch shows the fallback reason |
-| `bot.started` / `.stopped` / `.alert` | Bot Engine | Bot node pulse; `.alert` draws the edge into the escalated agent's task |
+| `bot.registered` (M5.15) | Bot Registry, once at boot per registered `BotDefinition` | Bot node appears in the fleet |
+| `bot.started` (M5.15) | Bot Engine, a bot is about to run | Bot node pulse begins |
+| `bot.run.started` / `.completed` (M5.15) | Bot Engine | Carries `botRunId`; `.completed` carries `status`/`durationMs`/`findingsCount` |
+| `bot.failed` (M5.15) | Bot Engine, a run failed or timed out | Bot node error glow; carries `errorCode`/`message`, never a raw stack trace |
+| `bot.paused` / `.resumed` (M5.15) | Bot Fleet PATCH route | Bot node dims / re-lights |
+| `bot.finding.created` (M5.15) | `core/bots/pipeline.ts`, a genuinely new `(botId, dedupKey)` | New finding node; carries `category`/`importance` |
+| `bot.finding.deduplicated` (M5.5/M5.15) | `core/bots/pipeline.ts`, a repeat detection | Existing finding node pulses instead of a new one appearing; carries `occurrenceCount` |
+| `bot.finding.escalated` (M5.12/M5.15) | `core/bots/pipeline.ts`, importance cleared the gate and Master produced a result | Edge from the bot node into the escalated task |
+| `bot.notification.sent` / `.failed` (M5.13/M5.15) | `core/notifications/notificationService.ts` | Notification icon on the finding; `.failed` carries a safe `error` string (never a device token or push-service credential) |
 | `automation.triggered` | Automation runner | Automation node fires, links to the resulting task or notification |
 
 M4 note: a real tool invocation's events fire in this order —

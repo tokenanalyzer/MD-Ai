@@ -18,12 +18,26 @@ vi.mock("expo-constants", () => ({
 afterEach(() => {
   store.clear();
   vi.resetModules();
+  delete process.env["EXPO_PUBLIC_MDAI_BACKEND_URL"];
 });
 
 describe("backendUrl", () => {
   it("defaults to the emulator alias from app.json's extra config", async () => {
     const { getBackendUrl } = await import("../src/api/backendUrl");
     expect(await getBackendUrl()).toBe("http://10.0.2.2:8080");
+  });
+
+  it("prefers EXPO_PUBLIC_MDAI_BACKEND_URL over app.json's default (dev-build LAN workflow)", async () => {
+    process.env["EXPO_PUBLIC_MDAI_BACKEND_URL"] = "http://192.168.1.50:8080";
+    const { getBackendUrl } = await import("../src/api/backendUrl");
+    expect(await getBackendUrl()).toBe("http://192.168.1.50:8080");
+  });
+
+  it("a persisted SecureStore override still wins over the env var", async () => {
+    process.env["EXPO_PUBLIC_MDAI_BACKEND_URL"] = "http://192.168.1.50:8080";
+    const { getBackendUrl, setBackendUrl } = await import("../src/api/backendUrl");
+    await setBackendUrl("https://my-oracle-box.example.com");
+    expect(await getBackendUrl()).toBe("https://my-oracle-box.example.com");
   });
 
   it("persists an override via setBackendUrl and returns it thereafter", async () => {

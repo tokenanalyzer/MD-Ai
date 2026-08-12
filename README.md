@@ -24,7 +24,7 @@ always-on backend.
 
 ## Status
 
-**M0 (foundation architecture) through M4 (MCP tool layer) are
+**M0 (foundation architecture) through M5 (Bot Engine + notifications) are
 delivered.** Backend: real Postgres/Redis-backed API + WS server, device
 pairing/auth, on-device provider key vault contract, all five provider
 adapters, a DB-backed Model Registry with discovery + telemetry-driven
@@ -32,17 +32,28 @@ health rollup, a deterministic AUTO scoring router (capability matrix,
 retry, circuit-breaker, fallback) plus a MANUAL pin mode, a real
 three-agent system (Master orchestrator, Research, Reviewer) with A2A
 delegation and a bounded revision loop, a memory subsystem with
-approval-gated retrieval, and a DB-backed Tool Registry + MCP execution
-layer giving Research Agent real (SSRF-protected, permission-checked,
-timeout-bounded) web search and page reading — 143 backend automated
-tests + 11 mobile pure-logic tests, all passing (real Postgres/Redis,
-mocked provider/tool HTTP). Mobile: pairing, Provider Vault (keys,
-models, default-model picker, AUTO/MANUAL toggle), chat screens with
-live delegation/tool status text, implemented against the same
-contracts; the whole mobile workspace typechecks cleanly, but has not run
-on a real Android device/emulator (no Android tooling in the environment
-this was built in — see `10-android-setup.md`). See `09-roadmap.md` for
-exact scope and the next milestone (M5).
+approval-gated retrieval, a DB-backed Tool Registry + MCP execution layer
+giving Research Agent real (SSRF-protected — including connect-time
+DNS-rebinding protection — permission-checked, timeout-bounded) web
+search (two independent `SearchProvider`s) and page reading, and a Bot
+Engine (`12-bot-engine.md`) — four deterministic background bots (AI/
+Model Release, News, User Topic, System Health Monitors) on a shared,
+resource-bounded BullMQ worker, deduplication + a deterministic
+importance filter, agent escalation through Master's existing
+delegation pipeline, an opt-in encrypted background-credential vault so
+escalation can work with the app closed, and Android push notifications
+(Expo → FCM) with owner-controlled, default-conservative preferences —
+**192 backend automated tests + 13 mobile pure-logic tests, all passing**
+(real Postgres/Redis, mocked provider/tool HTTP). Mobile: pairing,
+Provider Vault (keys, models, default-model picker, AUTO/MANUAL toggle),
+chat screens with live delegation/tool status text, and a Bot Fleet
+screen (enable/disable/pause/resume/run-now, findings, run history) —
+implemented against the same contracts; the whole mobile workspace
+typechecks cleanly and is now configured for an Expo Development Build
+on a real physical device (see `10-android-setup.md` §4), but has not
+yet actually run on one (no Android tooling in the environment this was
+built in). See `09-roadmap.md` for exact scope and the next milestone
+(M6).
 
 Quickstart (backend):
 ```sh
