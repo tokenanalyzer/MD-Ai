@@ -52,7 +52,7 @@ export default function AgentDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
+          <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
           <Text style={styles.title}>Agent</Text>
@@ -69,7 +69,7 @@ export default function AgentDetailScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>

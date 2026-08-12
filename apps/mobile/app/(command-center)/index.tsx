@@ -26,12 +26,12 @@ export default function CommandCenterScreen() {
         </View>
         <View style={styles.headerActions}>
           <Link href="/(chat)" asChild>
-            <Pressable style={styles.navButton}>
+            <Pressable style={styles.navButton} accessibilityRole="button" accessibilityLabel="Open Chat">
               <Text style={styles.navButtonText}>Chat</Text>
             </Pressable>
           </Link>
           <Link href="/(settings)" asChild>
-            <Pressable style={styles.navButton}>
+            <Pressable style={styles.navButton} accessibilityRole="button" accessibilityLabel="Open Settings">
               <Text style={styles.navButtonText}>⚙</Text>
             </Pressable>
           </Link>
