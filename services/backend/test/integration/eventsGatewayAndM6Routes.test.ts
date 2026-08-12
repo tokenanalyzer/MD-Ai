@@ -99,12 +99,22 @@ describe("/ws/events — M6 live event stream", () => {
 });
 
 describe("GET /agents/:id/delegations — M6 Agent Detail", () => {
-  it("returns Master's real delegation edges (research, reviewer), not a hardcoded list", async () => {
+  it("returns Master's real delegation edges (M3's research/reviewer plus M8's specialists and Guardian), not a hardcoded list", async () => {
     const token = await pairedToken();
     const res = await request(app).get("/agents/master/delegations").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     const ids = res.body.data.map((a: { id: string }) => a.id).sort();
-    expect(ids).toEqual(["research", "reviewer"]);
+    expect(ids).toEqual([
+      "ai-radar",
+      "business-intel",
+      "crypto-intel",
+      "guardian",
+      "news-intel",
+      "research",
+      "reviewer",
+      "social-media",
+      "stock-intel",
+    ]);
   });
 });
 

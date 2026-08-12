@@ -35,18 +35,31 @@ async function pairedToken(): Promise<string> {
 }
 
 describe("Agent Registry (M3.1)", () => {
-  it("lists exactly the M3 three-agent roster with real, non-hardcoded capabilities", async () => {
+  it("lists the full roster (M3 core three plus M8's specialists and Guardian) with real, non-hardcoded capabilities", async () => {
     const token = await pairedToken();
     const res = await request(app).get("/agents").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
 
     const agents = res.body.data as { id: string; capabilities: string[]; status: string }[];
     const byId = new Map(agents.map((a) => [a.id, a]));
-    expect([...byId.keys()].sort()).toEqual(["master", "research", "reviewer"]);
+    expect([...byId.keys()].sort()).toEqual([
+      "ai-radar",
+      "business-intel",
+      "crypto-intel",
+      "guardian",
+      "master",
+      "news-intel",
+      "research",
+      "reviewer",
+      "social-media",
+      "stock-intel",
+    ]);
     expect(byId.get("master")?.capabilities).toEqual(expect.arrayContaining(["chat", "orchestration"]));
     expect(byId.get("research")?.capabilities).toContain("research");
     expect(byId.get("reviewer")?.capabilities).toContain("review");
     expect(byId.get("master")?.status).not.toBe("disabled");
+    expect(byId.get("crypto-intel")?.capabilities).toContain("crypto-analysis");
+    expect(byId.get("guardian")?.capabilities).toContain("policy-enforcement");
   });
 
   it("reflects a disabled agent's status immediately via PATCH /agents/:id", async () => {

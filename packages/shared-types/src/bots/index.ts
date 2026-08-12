@@ -8,7 +8,7 @@
  * to Master, exactly like a user chat message would.
  */
 
-export type BotCategory = "ai_release" | "news" | "user_topic" | "system_health" | "general";
+export type BotCategory = "ai_release" | "news" | "user_topic" | "system_health" | "market" | "social" | "business" | "general";
 export type BotStatus = "idle" | "running" | "paused" | "disabled" | "error";
 export type BotHealth = "healthy" | "degraded" | "unavailable" | "unknown";
 export type FindingImportance = "low" | "medium" | "high" | "critical";

@@ -15,6 +15,8 @@ import { ToolRegistryService } from "./core/mcp/toolRegistryService.js";
 import { createResearchAgent } from "./core/agents/research/researchAgent.js";
 import { createReviewerAgent } from "./core/agents/reviewer/reviewerAgent.js";
 import { createMasterAgent } from "./core/agents/master/masterAgent.js";
+import { createSpecialistAgents } from "./core/agents/specialist/specialists.js";
+import { createGuardianAgent } from "./core/agents/guardian/guardianAgent.js";
 import { webSearchTool } from "./core/mcp/tools/webSearchTool.js";
 import { urlReaderTool } from "./core/mcp/tools/urlReaderTool.js";
 import { fileReaderTool } from "./core/mcp/tools/fileReaderTool.js";
@@ -28,6 +30,11 @@ import { aiModelReleaseMonitor } from "./core/bots/aiModelReleaseMonitor.js";
 import { newsMonitor } from "./core/bots/newsMonitor.js";
 import { createUserTopicMonitor } from "./core/bots/userTopicMonitor.js";
 import { createSystemHealthMonitor } from "./core/bots/systemHealthMonitor.js";
+import { marketScanner } from "./core/bots/marketScanner.js";
+import { liquidityMonitor } from "./core/bots/liquidityMonitor.js";
+import { volumeAnomalyMonitor } from "./core/bots/volumeAnomalyMonitor.js";
+import { socialTrendMonitor } from "./core/bots/socialTrendMonitor.js";
+import { businessOpportunityMonitor } from "./core/bots/businessOpportunityMonitor.js";
 import { expoPushSender } from "./core/notifications/expoPushSender.js";
 import { getRedisConnection, closeRedisConnection } from "./queue/connection.js";
 import {
@@ -83,6 +90,16 @@ async function main(): Promise<void> {
   agentRegistry.register(createReviewerAgent());
   agentRegistry.register(createMasterAgent({ agentRegistry, memoryEngine }));
 
+  // M8 roster: six domain specialists (each the same real tool-using
+  // pipeline as Research, parameterized by domain focus — see
+  // core/agents/specialist/specialistAgentFactory.ts) plus Guardian.
+  // Selectable purely via `agent_delegation_edges` data (migration 0021),
+  // no change to Master's capability-based delegation logic.
+  for (const specialist of createSpecialistAgents()) {
+    agentRegistry.register(specialist);
+  }
+  agentRegistry.register(createGuardianAgent());
+
   // M4.3 first safe tool set — see docs/architecture/11-mcp-tools.md.
   // Which agent may actually call which tool is `agent_tool_grants` data
   // (migration 0019), not this registration order.
@@ -103,6 +120,14 @@ async function main(): Promise<void> {
   botRegistry.register(newsMonitor);
   botRegistry.register(createUserTopicMonitor(pool));
   botRegistry.register(createSystemHealthMonitor(pool, redis));
+
+  // M8 remaining bots — same deterministic SearchProvider pattern as News
+  // Monitor (M5.9); see docs/architecture/09-roadmap.md M8.
+  botRegistry.register(marketScanner);
+  botRegistry.register(liquidityMonitor);
+  botRegistry.register(volumeAnomalyMonitor);
+  botRegistry.register(socialTrendMonitor);
+  botRegistry.register(businessOpportunityMonitor);
 
   const botEngine = new BotEngine({
     pool,

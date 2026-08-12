@@ -9,6 +9,8 @@ import { ToolRegistryService } from "../../src/core/mcp/toolRegistryService.js";
 import { createResearchAgent } from "../../src/core/agents/research/researchAgent.js";
 import { createReviewerAgent } from "../../src/core/agents/reviewer/reviewerAgent.js";
 import { createMasterAgent } from "../../src/core/agents/master/masterAgent.js";
+import { createSpecialistAgents } from "../../src/core/agents/specialist/specialists.js";
+import { createGuardianAgent } from "../../src/core/agents/guardian/guardianAgent.js";
 import { webSearchTool } from "../../src/core/mcp/tools/webSearchTool.js";
 import { urlReaderTool } from "../../src/core/mcp/tools/urlReaderTool.js";
 import { fileReaderTool } from "../../src/core/mcp/tools/fileReaderTool.js";
@@ -22,6 +24,11 @@ import { aiModelReleaseMonitor } from "../../src/core/bots/aiModelReleaseMonitor
 import { newsMonitor } from "../../src/core/bots/newsMonitor.js";
 import { createUserTopicMonitor } from "../../src/core/bots/userTopicMonitor.js";
 import { createSystemHealthMonitor } from "../../src/core/bots/systemHealthMonitor.js";
+import { marketScanner } from "../../src/core/bots/marketScanner.js";
+import { liquidityMonitor } from "../../src/core/bots/liquidityMonitor.js";
+import { volumeAnomalyMonitor } from "../../src/core/bots/volumeAnomalyMonitor.js";
+import { socialTrendMonitor } from "../../src/core/bots/socialTrendMonitor.js";
+import { businessOpportunityMonitor } from "../../src/core/bots/businessOpportunityMonitor.js";
 
 const noopNotificationSender: NotificationSender = {
   async send() {
@@ -46,6 +53,10 @@ export function buildTestAgentRegistry(
   agentRegistry.register(createResearchAgent());
   agentRegistry.register(createReviewerAgent());
   agentRegistry.register(createMasterAgent({ agentRegistry, memoryEngine }));
+  for (const specialist of createSpecialistAgents()) {
+    agentRegistry.register(specialist);
+  }
+  agentRegistry.register(createGuardianAgent());
   toolRegistry.register(webSearchTool);
   toolRegistry.register(urlReaderTool);
   toolRegistry.register(fileReaderTool);
@@ -59,6 +70,11 @@ export function buildTestAgentRegistry(
   botRegistry.register(newsMonitor);
   botRegistry.register(createUserTopicMonitor(pool));
   if (redis) botRegistry.register(createSystemHealthMonitor(pool, redis));
+  botRegistry.register(marketScanner);
+  botRegistry.register(liquidityMonitor);
+  botRegistry.register(volumeAnomalyMonitor);
+  botRegistry.register(socialTrendMonitor);
+  botRegistry.register(businessOpportunityMonitor);
   const botEngine = new BotEngine({
     pool,
     eventBus: new EventBus(pool),

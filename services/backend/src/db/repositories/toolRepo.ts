@@ -85,6 +85,43 @@ export async function createToolInvocation(
   return row;
 }
 
+export async function getToolInvocation(pool: pg.Pool, id: string): Promise<ToolInvocationRow | undefined> {
+  const { rows } = await pool.query<ToolInvocationRow>("SELECT * FROM tool_invocations WHERE id = $1", [id]);
+  return rows[0];
+}
+
+export async function listToolInvocationsByStatus(
+  pool: pg.Pool,
+  status: ToolInvocationStatus,
+  limit = 50,
+): Promise<ToolInvocationRow[]> {
+  const { rows } = await pool.query<ToolInvocationRow>(
+    "SELECT * FROM tool_invocations WHERE status = $1 ORDER BY created_at DESC LIMIT $2",
+    [status, limit],
+  );
+  return rows;
+}
+
+/**
+ * M8: a human's decision on an invocation Guardian left `awaiting_approval`
+ * — records the decision only; no task-resumption mechanism exists to
+ * replay/re-execute the original tool call (same documented boundary as
+ * A2A cancellation being best-effort). Only transitions rows still
+ * `awaiting_approval`, so a decision can't be applied twice or to a row
+ * Guardian already denied.
+ */
+export async function decideToolInvocation(
+  pool: pg.Pool,
+  id: string,
+  decision: "approved" | "denied",
+): Promise<ToolInvocationRow | undefined> {
+  const { rows } = await pool.query<ToolInvocationRow>(
+    `UPDATE tool_invocations SET status = $2 WHERE id = $1 AND status = 'awaiting_approval' RETURNING *`,
+    [id, decision],
+  );
+  return rows[0];
+}
+
 export async function completeToolInvocation(
   pool: pg.Pool,
   id: string,

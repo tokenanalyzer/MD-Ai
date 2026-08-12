@@ -34,3 +34,27 @@ export class ToolTimeoutError extends Error {
     this.name = "ToolTimeoutError";
   }
 }
+
+/** M8: Guardian's deterministic policy check (`core/agents/guardian/policy.ts`) returned "deny" for a `requiresApproval` tool — an automatic veto that never reaches a human. */
+export class ToolApprovalDeniedError extends Error {
+  constructor(
+    readonly toolId: string,
+    readonly agentId: string,
+    readonly reason: string,
+  ) {
+    super(`Tool "${toolId}" call by "${agentId}" was denied by Guardian policy: ${reason}`);
+    this.name = "ToolApprovalDeniedError";
+  }
+}
+
+/** M8: Guardian's policy check returned "pending" for a `requiresApproval` tool — recorded as `awaiting_approval` and queued for a human decision via the tool-approvals endpoint. */
+export class ToolApprovalRequiredError extends Error {
+  constructor(
+    readonly toolId: string,
+    readonly agentId: string,
+    readonly invocationId: string,
+  ) {
+    super(`Tool "${toolId}" call by "${agentId}" requires human approval (invocation ${invocationId})`);
+    this.name = "ToolApprovalRequiredError";
+  }
+}

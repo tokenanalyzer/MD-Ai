@@ -42,12 +42,22 @@ async function pairedToken(): Promise<string> {
 }
 
 describe("Bot Registry discovery + Bot Fleet REST surface (M5.1/M5.16)", () => {
-  it("lists exactly the four seeded bots, no hardcoded scheduler list — DB-backed discovery only", async () => {
+  it("lists exactly the seeded bots (M5's four plus M8's five), no hardcoded scheduler list — DB-backed discovery only", async () => {
     const token = await pairedToken();
     const res = await request(app).get("/bots").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     const ids = res.body.data.map((b: { id: string }) => b.id).sort();
-    expect(ids).toEqual(["ai-model-release-monitor", "news-monitor", "system-health-monitor", "user-topic-monitor"]);
+    expect(ids).toEqual([
+      "ai-model-release-monitor",
+      "business-opportunity-monitor",
+      "liquidity-monitor",
+      "market-scanner",
+      "news-monitor",
+      "social-trend-monitor",
+      "system-health-monitor",
+      "user-topic-monitor",
+      "volume-anomaly-monitor",
+    ]);
     expect(res.body.data.every((b: { enabled: boolean; status: string }) => b.enabled && b.status === "idle")).toBe(true);
   });
 

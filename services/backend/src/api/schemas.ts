@@ -127,6 +127,12 @@ export const pushTokenBodySchema = z.object({
   pushToken: z.string().min(1),
 });
 
+// ---- M8: Guardian tool-approval decisions ---------------------------------
+
+export const decideToolApprovalBodySchema = z.object({
+  decision: z.enum(["approved", "denied"]),
+});
+
 const findingImportanceSchema = z.enum(["low", "medium", "high", "critical"]);
 
 export const patchNotificationPreferencesBodySchema = z.object({

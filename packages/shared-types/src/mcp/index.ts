@@ -56,7 +56,9 @@ export type ToolInvocationStatus =
   | "timeout"
   | "blocked"
   | "awaiting_approval"
-  | "denied";
+  | "denied"
+  /** A human's post-hoc decision on an `awaiting_approval` invocation (M8) — recorded as a decision only, since no task-resumption mechanism replays the original call. */
+  | "approved";
 
 export interface ToolInvocation {
   id: string;

@@ -2,7 +2,9 @@ import type pg from "pg";
 import type { EventBus } from "../events/eventBus.js";
 import type { ToolRegistryService } from "./toolRegistryService.js";
 import { completeToolInvocation, createToolInvocation, updateToolHealth } from "../../db/repositories/toolRepo.js";
-import { ToolNotAvailableError, ToolPermissionDeniedError, ToolTimeoutError } from "./errors.js";
+import { writeAuditLog } from "../../db/repositories/auditLogRepo.js";
+import { ToolApprovalDeniedError, ToolApprovalRequiredError, ToolNotAvailableError, ToolPermissionDeniedError, ToolTimeoutError } from "./errors.js";
+import { evaluateToolApprovalPolicy } from "../agents/guardian/policy.js";
 import { UnsafeUrlError } from "../security/ssrfGuard.js";
 
 export interface McpHostDeps {
@@ -60,6 +62,56 @@ export async function invokeTool(deps: McpHostDeps, request: InvokeToolRequest):
       payload: { type: "tool.blocked", toolId, agentId, reason: "no agent_tool_grants row authorizes this call" },
     });
     throw new ToolPermissionDeniedError(agentId, toolId);
+  }
+
+  if (definition.requiresApproval) {
+    const verdict = evaluateToolApprovalPolicy({ toolId, agentId, riskLevel: definition.riskLevel, accessLevel });
+    const gateStart = Date.now();
+    const gateInvocation = await createToolInvocation(pool, { toolId, taskId, agentId, input });
+
+    if (verdict.decision === "deny") {
+      await completeToolInvocation(pool, gateInvocation.id, {
+        status: "denied",
+        errorCode: "guardian_denied",
+        error: verdict.reason,
+        latencyMs: Date.now() - gateStart,
+      });
+      await eventBus.publish({
+        sourceType: "tool",
+        sourceId: toolId,
+        taskId,
+        severity: "warn",
+        payload: { type: "tool.blocked", toolId, agentId, invocationId: gateInvocation.id, reason: verdict.reason },
+      });
+      await writeAuditLog(pool, {
+        actor: "guardian",
+        action: "tool_approval.denied",
+        targetType: "tool_invocation",
+        targetId: gateInvocation.id,
+        metadata: { toolId, agentId, reason: verdict.reason },
+      });
+      throw new ToolApprovalDeniedError(toolId, agentId, verdict.reason);
+    }
+
+    await completeToolInvocation(pool, gateInvocation.id, {
+      status: "awaiting_approval",
+      latencyMs: Date.now() - gateStart,
+    });
+    await eventBus.publish({
+      sourceType: "tool",
+      sourceId: toolId,
+      taskId,
+      severity: "warn",
+      payload: { type: "tool.blocked", toolId, agentId, invocationId: gateInvocation.id, reason: verdict.reason },
+    });
+    await writeAuditLog(pool, {
+      actor: "guardian",
+      action: "tool_approval.pending",
+      targetType: "tool_invocation",
+      targetId: gateInvocation.id,
+      metadata: { toolId, agentId, reason: verdict.reason },
+    });
+    throw new ToolApprovalRequiredError(toolId, agentId, gateInvocation.id);
   }
 
   const handler = toolRegistry.getImplementation(toolId);
