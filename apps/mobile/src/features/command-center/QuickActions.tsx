@@ -24,7 +24,6 @@ interface Action {
  */
 export function QuickActions() {
   const startNewConversation = useChatStore((s) => s.startNewConversation);
-  const send = useChatStore((s) => s.send);
   const refreshStatus = useSystemStatusStore((s) => s.refresh);
 
   const actions: Action[] = [
@@ -40,7 +39,7 @@ export function QuickActions() {
       hint: "Opens Chat — describe what to research and Master will route it.",
     },
     { key: "system-status", label: "System Status", onPress: () => void refreshStatus() },
-    { key: "agents", label: "Agents", disabled: true, hint: "Coming in M6.5" },
+    { key: "agents", label: "Agents", onPress: () => router.push("/(agents)") },
     { key: "models", label: "Models", disabled: true, hint: "Coming in M6.6" },
     { key: "memory", label: "Memory", disabled: true, hint: "Coming in M6.7" },
     { key: "tools", label: "Tools", disabled: true, hint: "Coming in M6.8" },
