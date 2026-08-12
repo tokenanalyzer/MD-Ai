@@ -42,7 +42,7 @@ export function QuickActions() {
     { key: "agents", label: "Agents", onPress: () => router.push("/(agents)") },
     { key: "models", label: "Models", onPress: () => router.push("/(models)") },
     { key: "memory", label: "Memory", onPress: () => router.push("/(memory)") },
-    { key: "tools", label: "Tools", disabled: true, hint: "Coming in M6.8" },
+    { key: "tools", label: "Tools", onPress: () => router.push("/(tools)") },
     { key: "automations", label: "Automations", onPress: () => router.push("/(bots)") },
   ];
 
