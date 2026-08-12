@@ -41,7 +41,7 @@ export function QuickActions() {
     { key: "system-status", label: "System Status", onPress: () => void refreshStatus() },
     { key: "agents", label: "Agents", onPress: () => router.push("/(agents)") },
     { key: "models", label: "Models", onPress: () => router.push("/(models)") },
-    { key: "memory", label: "Memory", disabled: true, hint: "Coming in M6.7" },
+    { key: "memory", label: "Memory", onPress: () => router.push("/(memory)") },
     { key: "tools", label: "Tools", disabled: true, hint: "Coming in M6.8" },
     { key: "automations", label: "Automations", onPress: () => router.push("/(bots)") },
   ];
