@@ -222,3 +222,112 @@ export function sendMessage(
 export function cancelTask(taskId: string): Promise<void> {
   return request(`/tasks/${taskId}/cancel`, { method: "POST", body: {} });
 }
+
+// ---- bots (M5.16 — Bot Fleet screen) ------------------------------------------
+
+export type BotStatus = "idle" | "running" | "paused" | "disabled" | "error";
+export type BotHealth = "healthy" | "degraded" | "unavailable" | "unknown";
+export type FindingImportance = "low" | "medium" | "high" | "critical";
+
+export interface BotDto {
+  id: string;
+  displayName: string;
+  description: string;
+  version: string;
+  category: string;
+  status: BotStatus;
+  scheduleCron: string;
+  enabled: boolean;
+  health: BotHealth;
+  healthDetail?: string;
+  lastRunAt?: string;
+  lastSuccessfulRunAt?: string;
+  failureCount: number;
+}
+
+export interface BotRunDto {
+  id: string;
+  botId: string;
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  status: "running" | "succeeded" | "failed" | "timeout" | "cancelled";
+  error?: string;
+  findingsCount: number;
+}
+
+export interface BotFindingDto {
+  id: string;
+  botId: string;
+  category: string;
+  title: string;
+  summary: string;
+  importance: FindingImportance;
+  status: "new" | "escalated" | "notified" | "resolved" | "dismissed";
+  escalationStatus: "none" | "pending" | "escalated" | "analyzed" | "failed";
+  occurrenceCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export function listBots(): Promise<BotDto[]> {
+  return request("/bots");
+}
+
+export function listBotRuns(botId: string): Promise<BotRunDto[]> {
+  return request(`/bots/${botId}/runs`);
+}
+
+export function listBotFindings(botId: string): Promise<BotFindingDto[]> {
+  return request(`/bots/${botId}/findings`);
+}
+
+export function patchBot(botId: string, patch: { enabled?: boolean; paused?: boolean }): Promise<BotDto> {
+  return request(`/bots/${botId}`, { method: "PATCH", body: patch });
+}
+
+export function runBotNow(botId: string): Promise<BotRunDto> {
+  return request(`/bots/${botId}/run-now`, { method: "POST", body: {} });
+}
+
+// ---- notifications (M5.13/M5.14) ------------------------------------------
+
+export interface NotificationDto {
+  id: string;
+  findingId?: string;
+  title: string;
+  summary: string;
+  importance: FindingImportance;
+  deepLink: string;
+  status: "pending" | "sent" | "failed" | "suppressed";
+  suppressedReason?: string;
+  sentAt?: string;
+  createdAt: string;
+}
+
+export interface NotificationPreferencesDto {
+  enabled: boolean;
+  minimumImportance: FindingImportance;
+  quietHoursStartMinute?: number;
+  quietHoursEndMinute?: number;
+  quietHoursTimezone: string;
+  mutedTopics: string[];
+  mutedBotIds: string[];
+  mutedCategories: string[];
+}
+
+export function listNotifications(): Promise<NotificationDto[]> {
+  return request("/notifications");
+}
+
+export function getNotificationPreferences(): Promise<NotificationPreferencesDto> {
+  return request("/notifications/preferences");
+}
+
+export function patchNotificationPreferences(patch: Partial<NotificationPreferencesDto>): Promise<NotificationPreferencesDto> {
+  return request("/notifications/preferences", { method: "PATCH", body: patch });
+}
+
+export function registerPushToken(pushToken: string): Promise<void> {
+  return request("/auth/push-token", { method: "POST", body: { pushToken } });
+}

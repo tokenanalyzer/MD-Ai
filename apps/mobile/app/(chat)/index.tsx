@@ -59,11 +59,18 @@ export default function ChatScreen() {
             {routingMode === "manual" ? `MANUAL · ${preferredModelId ?? "pick a model in Vault"}` : "AUTO routing"}
           </Text>
         </View>
-        <Link href="/(vault)" asChild>
-          <Pressable style={styles.settingsButton}>
-            <Text style={styles.settingsButtonText}>Vault</Text>
-          </Pressable>
-        </Link>
+        <View style={styles.headerActions}>
+          <Link href="/(bots)" asChild>
+            <Pressable style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>Bots</Text>
+            </Pressable>
+          </Link>
+          <Link href="/(vault)" asChild>
+            <Pressable style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>Vault</Text>
+            </Pressable>
+          </Link>
+        </View>
       </View>
 
       {lastError && (
@@ -121,6 +128,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
+  headerActions: { flexDirection: "row", gap: spacing.sm },
   statusRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   statusText: { color: colors.textSecondary, fontSize: typography.fontSize.xs },
   routingBadge: { color: colors.secondary, fontSize: typography.fontSize.xs, marginTop: 2 },
