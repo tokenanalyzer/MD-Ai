@@ -70,6 +70,11 @@ export default function ChatScreen() {
               <Text style={styles.settingsButtonText}>Vault</Text>
             </Pressable>
           </Link>
+          <Link href="/(settings)" asChild>
+            <Pressable style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>⚙</Text>
+            </Pressable>
+          </Link>
         </View>
       </View>
 

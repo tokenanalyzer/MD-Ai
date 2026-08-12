@@ -17,16 +17,10 @@ export async function registerForPushNotificationsAsync(): Promise<{ ok: true } 
   if (Platform.OS !== "android") return { ok: false, reason: "android-only in this milestone" };
   if (!Device.isDevice) return { ok: false, reason: "push tokens require a physical device, not an emulator" };
 
-  // Cast around this Expo SDK version's incomplete `NotificationPermissionsStatus`
-  // type export (it doesn't surface the `granted`/`status` fields
-  // `expo-modules-core`'s real `PermissionResponse` always returns at
-  // runtime) rather than depend on a type that doesn't match the actual
-  // shape.
-  type PermissionResult = { granted: boolean };
-  const existing = (await Notifications.getPermissionsAsync()) as unknown as PermissionResult;
+  const existing = await Notifications.getPermissionsAsync();
   let granted = existing.granted;
   if (!granted) {
-    const requested = (await Notifications.requestPermissionsAsync()) as unknown as PermissionResult;
+    const requested = await Notifications.requestPermissionsAsync();
     granted = requested.granted;
   }
   if (!granted) return { ok: false, reason: "notification permission denied" };

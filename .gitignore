@@ -10,4 +10,9 @@ build/
 *.log
 coverage/
 .turbo/
-android/app/build/
+# Expo CNG (Continuous Native Generation) output — `expo prebuild`
+# regenerates these from app.json + installed config plugins on demand
+# (docs/architecture/10-android-setup.md §C); never hand-edited or
+# committed, same convention as a managed Expo workflow.
+apps/mobile/android/
+apps/mobile/ios/

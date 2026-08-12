@@ -1,5 +1,118 @@
 # Android Setup & Verification
 
+## 0. Quick Start — get MD AI running on your phone (beginner-friendly)
+
+This is the short version. Each step links to the detailed reference
+section below it if something doesn't work.
+
+### A. Requirements
+- A physical Android phone with USB debugging available (Settings → About
+  Phone → tap "Build number" 7× → Settings → Developer Options → USB
+  debugging).
+- Node 20+, [pnpm](https://pnpm.io), and either Android Studio (for a
+  local build) or a free [Expo](https://expo.dev) account (for a cloud
+  build) — see §C.2 below for which one you need.
+- The MD AI backend running somewhere reachable from your phone: your own
+  machine on the same Wi-Fi (§G), or an Oracle instance (§H).
+
+### B. Install dependencies
+```sh
+git clone <this-repo-url> && cd md-ai
+pnpm install
+```
+This installs the whole monorepo (backend, shared types, mobile) in one
+step — no need to `cd` into `apps/mobile` first.
+
+### C. Build a Development Build (do this once)
+
+MD AI needs a **Development Build**, not plain Expo Go — it uses native
+modules (secure storage, push notifications) Expo Go can't load. You only
+redo this when a *native* dependency changes, not on every code change.
+
+**C.1 — Local build** (you have Android Studio + the Android SDK):
+```sh
+cd apps/mobile
+npx expo prebuild --platform android
+npx expo run:android      # connect your phone via USB first
+```
+
+**C.2 — Cloud build** (no Android Studio needed — recommended if you
+don't already have Android dev tools installed):
+```sh
+cd apps/mobile
+npx eas-cli login                                    # free Expo account
+npx eas-cli build:configure
+npx eas-cli build --profile development --platform android
+```
+EAS builds in the cloud and gives you a QR code / link — open it on your
+phone and install the `.apk` (allow "install from unknown sources" if
+asked).
+
+Neither path requires a paid service — EAS's free tier covers
+development builds.
+
+### D. Configure the backend URL
+Point the app at your backend **before** starting the dev server — see §E
+for exactly how. Two options:
+- Fastest: `EXPO_PUBLIC_MDAI_BACKEND_URL=http://<your-LAN-IP>:8080` as an
+  env var when you run `expo start` (§4.6).
+- Or: leave it unset, launch the app, and set it from the in-app
+  **Settings screen** (⚙ icon next to Vault on the Chat screen) — no
+  rebuild needed, takes effect on your next chat/WS connection.
+
+### E. Start Expo
+```sh
+cd apps/mobile
+EXPO_PUBLIC_MDAI_BACKEND_URL=http://<your-LAN-IP>:8080 npx expo start --dev-client
+```
+Scan the QR code using the **dev-client app** you installed in step C
+(not the phone's camera app, not Expo Go).
+
+### F. Install the APK on Android
+- Local build (§C.1): `expo run:android` installs it automatically over
+  USB.
+- Cloud build (§C.2): download the `.apk` EAS gives you and open it on
+  the phone directly (a browser download, AirDrop-equivalent, or `adb
+  install path/to/app.apk` if you have `adb` and a USB connection).
+
+### G. Connect the phone to your local backend
+1. Start the backend: `pnpm --filter @mdai/backend dev` (or `docker
+   compose -f infra/docker/docker-compose.yml up`).
+2. Find your dev machine's LAN IP: `ip addr` (Linux), `ifconfig` (Mac),
+   `ipconfig` (Windows).
+3. Confirm the phone can reach it: open
+   `http://<your-LAN-IP>:8080/healthz` in the phone's browser — expect
+   `{"status":"ok"}`.
+4. Use that URL in §D/§E. Full detail: §4.9.
+
+### H. Connect the phone to your Oracle backend
+Once your Oracle instance is deployed (`08-deployment-architecture.md`),
+use its public HTTPS URL the same way: `EXPO_PUBLIC_MDAI_BACKEND_URL=
+https://<your-oracle-domain>` or the in-app Settings screen. No LAN
+required — works over any internet connection. Full detail: §4.10.
+
+### I. Common errors
+| Symptom | Cause | Fix |
+|---|---|---|
+| App can't reach the backend at all | Used `localhost` in the backend URL | On a phone, `localhost` means the phone itself — use your machine's LAN IP or Oracle's domain (§D/§G/§H) |
+| "Network response timed out" only on the phone, works in a browser on the same machine | Wi-Fi client isolation, or a firewall blocking Metro's port (8081) or the backend's port (8080) | Try `npx expo start --dev-client --tunnel` (§4.5) to route around it |
+| Blank screen / immediately crashes on launch | Installed Expo Go instead of the dev-client build, or a stale dev-client after adding a new native module | Rebuild via §C after adding any new native dependency; make sure you scanned the QR from the **dev-client app**, not Expo Go |
+| `expo install`/`eas build` hangs or errors on version lookups | This sandbox environment specifically blocks Expo's registry API — not expected on a normal machine with internet access | Retry on your own machine; if it recurs, check `apps/mobile/node_modules/expo/bundledNativeModules.json` for the SDK's known-good versions directly |
+| Push token registration silently does nothing | Running in the emulator or via Expo Go, not a physical dev-client build | Push tokens require a real device + dev-client/production build (§4.12) |
+| A provider API key isn't working | Not a backend-URL issue — check the Vault screen's connection-test error message | See `07-security-model.md` §3 for how keys are supposed to flow (device → backend, per-request, never stored) |
+
+### J. How to switch backend environments
+No code change, no rebuild, for either path:
+- **Fastest for repeated dev-server restarts**: change the
+  `EXPO_PUBLIC_MDAI_BACKEND_URL` value and restart `expo start
+  --dev-client`.
+- **Fastest without restarting anything**: open the in-app Settings
+  screen, edit the URL field, tap "Save & use this backend" — takes
+  effect on the next chat message or WS reconnect, persisted on-device
+  so it survives app restarts too.
+
+---
+
 ## 1. M2.0 verification status — read this first
 
 **The mobile app has not been run on a physical Android device or emulator
@@ -126,6 +239,34 @@ prebuild`'s `android/` output is regenerable, not hand-maintained).
 
 ### 4.1 Expo development build configuration
 
+**Verified versions** (`apps/mobile/package.json`, cross-checked against
+Expo SDK 52's own compatibility manifest —
+`expo/bundledNativeModules.json` — not guessed):
+
+| Package | Version | Notes |
+|---|---|---|
+| `expo` (SDK) | 52.0.49 | |
+| `react` / `react-native` | 18.3.1 / 0.76.9 | |
+| `expo-router` | ~4.0.0 | file-based navigation, already in use for every screen |
+| `expo-secure-store` | ~14.0.0 | Android Keystore-backed vault (M1) |
+| `expo-dev-client` | ~5.0.20 | the development-build native shell itself |
+| `expo-notifications` | ~0.29.14 | push token registration (M5.13) |
+| `expo-device` | ~7.0.3 | physical-vs-emulator detection, gates push registration |
+| `expo-system-ui` | ~4.0.9 | applies `userInterfaceStyle: "dark"` natively — added this pass, see note below |
+
+An earlier pass installed `expo-dev-client`/`expo-notifications`/
+`expo-device` via a bare `pnpm add` with no version pin, which resolved
+to their latest npm versions (57.x — Expo's own SDK-number-matched
+release line, five majors ahead of this project's SDK 52). That's a real
+native-ABI mismatch that would have broken the actual build; this pass
+re-pinned all three to the exact SDK-52-compatible versions from Expo's
+own bundled manifest and confirmed the fix with `npx expo prebuild`
+(§4.2) succeeding cleanly. `expo-system-ui` was missing outright —
+`expo prebuild` warned `userInterfaceStyle: Install expo-system-ui in
+your project to enable this feature` (the dark-theme setting in
+`app.json` wasn't fully applying natively without it); adding it cleared
+the warning.
+
 Already wired into this repo:
 - `expo-dev-client` is a dependency (`apps/mobile/package.json`) and
   listed in `app.json`'s `plugins`.
@@ -136,7 +277,9 @@ Already wired into this repo:
 You do **not** need an EAS/Expo account to use a development build if you
 build locally (§4.2 option A). You **do** need one for cloud builds
 (§4.2 option B), which is the recommended path if you don't have Android
-Studio/the Android SDK installed locally.
+Studio/the Android SDK installed locally — and even then it's free (EAS's
+free tier covers development builds; no paid plan required for this
+workflow).
 
 ### 4.2 Android development configuration
 
@@ -201,8 +344,9 @@ The phone and your dev machine must be able to reach each other:
 Three layers, in priority order (`src/api/backendUrl.ts`):
 1. **A SecureStore-persisted override**, set once at runtime via
    `setBackendUrl()` — highest priority, survives across app restarts.
-   No UI screen calls this yet; call it from a debug console or add a
-   Settings field if you want an in-app switcher.
+   Set it from the in-app **Settings screen** (the ⚙ icon next to Vault
+   on the Chat screen) — no rebuild, no code change, takes effect on the
+   next chat/WS connection.
 2. **`EXPO_PUBLIC_MDAI_BACKEND_URL`** (new in this milestone) — Expo/
    Metro inlines `EXPO_PUBLIC_*` env vars at bundle time, so this is the
    fastest way to point a dev build at your own machine without editing
