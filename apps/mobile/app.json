@@ -9,7 +9,7 @@
     "backgroundColor": "#0a0d0c",
     "platforms": ["android", "web"],
     "android": {
-      "package": "ai.mdai.app",
+      "package": "com.venom31.mdai",
       "backgroundColor": "#0a0d0c"
     },
     "web": {

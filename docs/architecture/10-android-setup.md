@@ -432,7 +432,7 @@ just different values for the same backend-URL resolution chain.
 this is real, hardware-backed encryption, not a dev-only mock, and it
 behaves identically in a development build and a production build. The
 one thing that differs from Expo Go: SecureStore data is scoped per app
-package (`ai.mdai.app`), so uninstalling/reinstalling the dev-client
+package (`com.venom31.mdai`), so uninstalling/reinstalling the dev-client
 `.apk` (not just clearing Metro cache) clears the vault, requiring
 re-pairing and re-entering provider keys. Test coverage for the wrapper
 logic itself (index bookkeeping, last-4 computation) runs against a

@@ -5,6 +5,8 @@
   },
   "build": {
     "development": {
+      "node": "22.22.2",
+      "pnpm": "10.33.0",
       "developmentClient": true,
       "distribution": "internal",
       "android": {
@@ -12,12 +14,16 @@
       }
     },
     "preview": {
+      "node": "22.22.2",
+      "pnpm": "10.33.0",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "node": "22.22.2",
+      "pnpm": "10.33.0",
       "autoIncrement": true
     }
   },
