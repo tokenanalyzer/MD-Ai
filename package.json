@@ -9,6 +9,7 @@
   },
   "scripts": {
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
