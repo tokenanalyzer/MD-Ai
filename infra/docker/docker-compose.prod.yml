@@ -1,0 +1,32 @@
+# Production overlay for the Oracle Cloud target (2 OCPU / 12GB — see
+# docs/architecture/08-deployment-architecture.md §2's resource budget
+# table, which these limits mirror exactly). Referenced by
+# infra/oracle-cloud/README.md's bring-up checklist:
+#
+#   docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml up -d
+#
+# The base file is usable standalone for local development (no limits, so
+# a slow dev laptop isn't artificially throttled); this overlay is what
+# actually enforces the budget on the real target instance, so one
+# misbehaving service can't starve the others of the box's fixed 12GB.
+
+services:
+  postgres:
+    mem_limit: 3g
+    cpus: 1.0
+
+  redis:
+    mem_limit: 512m
+    cpus: 0.25
+
+  backend:
+    mem_limit: 2.5g
+    cpus: 1.5
+
+  caddy:
+    mem_limit: 128m
+    cpus: 0.25
+
+  n8n:
+    mem_limit: 512m
+    cpus: 0.5

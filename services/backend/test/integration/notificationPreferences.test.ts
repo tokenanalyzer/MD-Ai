@@ -6,7 +6,7 @@ import { createDeviceSession } from "../../src/db/repositories/deviceSessionRepo
 import { getOrCreateNotificationPreferences, updateNotificationPreferences } from "../../src/db/repositories/notificationPreferencesRepo.js";
 import { listRecentNotifications } from "../../src/db/repositories/notificationRepo.js";
 import { notifyForFinding } from "../../src/core/notifications/notificationService.js";
-import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
+import { getTestPool, resetTestData } from "../helpers/testDb.js";
 import type { NotificationSender } from "@mdai/shared-types";
 
 const pool = await getTestPool();

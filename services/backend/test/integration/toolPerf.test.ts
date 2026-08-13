@@ -99,7 +99,6 @@ describe("Per-tool invocation latency (M4.16)", () => {
     expect(rows.rows.every((r) => r.status === "succeeded")).toBe(true);
     expect(rows.rows.every((r) => typeof r.latency_ms === "number" && r.latency_ms >= 0)).toBe(true);
 
-    // eslint-disable-next-line no-console
     console.log(
       "[M4.16] per-tool latency (ms, mocked HTTP — excludes real network/search-provider time):",
       Object.fromEntries(rows.rows.map((r) => [r.tool_id, r.latency_ms])),

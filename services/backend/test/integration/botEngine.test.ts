@@ -2,7 +2,7 @@ import "../setupEnv.js";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Redis } from "ioredis";
 import { Queue } from "bullmq";
-import type { BotDefinition, BotRunContext, BotRunResult, NotificationSender } from "@mdai/shared-types";
+import type { BotRunContext, BotRunResult, NotificationSender } from "@mdai/shared-types";
 import { EventBus } from "../../src/core/events/eventBus.js";
 import { AgentRegistryService } from "../../src/core/agents/agentRegistryService.js";
 import { ModelRegistryService } from "../../src/core/registry/modelRegistryService.js";

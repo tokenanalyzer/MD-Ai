@@ -8,7 +8,7 @@ import { createBotRun } from "../../src/db/repositories/botRunRepo.js";
 import { upsertFinding } from "../../src/db/repositories/botFindingRepo.js";
 import { processBotFindings } from "../../src/core/bots/pipeline.js";
 import { buildTestAgentRegistry } from "../helpers/appDeps.js";
-import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
+import { getTestPool, resetTestData } from "../helpers/testDb.js";
 import type { NotificationSender, NormalizedFinding } from "@mdai/shared-types";
 
 const pool = await getTestPool();

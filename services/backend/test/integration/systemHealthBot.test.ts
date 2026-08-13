@@ -2,7 +2,7 @@ import "../setupEnv.js";
 import { beforeEach, describe, expect, it } from "vitest";
 import { Redis } from "ioredis";
 import { createSystemHealthMonitor } from "../../src/core/bots/systemHealthMonitor.js";
-import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
+import { getTestPool, resetTestData } from "../helpers/testDb.js";
 
 const pool = await getTestPool();
 const redis = new Redis(process.env.REDIS_URL as string);

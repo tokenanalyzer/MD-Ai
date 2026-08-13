@@ -1,5 +1,5 @@
 import "../setupEnv.js";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { resetEnvCacheForTests } from "../../src/config/env.js";
 import {
   BackgroundKeyVaultNotConfiguredError,

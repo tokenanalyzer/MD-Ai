@@ -168,7 +168,6 @@ export function useSceneGraph(): SceneState {
           break;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, liveIds]);
 
   const others = useMemo(() => agents.filter((a) => a.id !== "master"), [agents]);

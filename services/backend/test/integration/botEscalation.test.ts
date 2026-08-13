@@ -3,7 +3,6 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from "undici";
 import { EventBus } from "../../src/core/events/eventBus.js";
 import { ModelRegistryService } from "../../src/core/registry/modelRegistryService.js";
-import { ToolRegistryService } from "../../src/core/mcp/toolRegistryService.js";
 import { ensureOwner } from "../../src/db/repositories/ownerRepo.js";
 import { createBot } from "../../src/db/repositories/botRepo.js";
 import { createBotRun } from "../../src/db/repositories/botRunRepo.js";
@@ -12,7 +11,7 @@ import { upsertBackgroundCredential } from "../../src/db/repositories/background
 import { encryptCredential, last4 } from "../../src/core/security/backgroundKeyVault.js";
 import { escalateFinding } from "../../src/core/bots/escalation.js";
 import { buildTestAgentRegistry } from "../helpers/appDeps.js";
-import { getTestPool, resetTestData, closeTestPool } from "../helpers/testDb.js";
+import { getTestPool, resetTestData } from "../helpers/testDb.js";
 
 const pool = await getTestPool();
 const { agentRegistry, toolRegistry } = buildTestAgentRegistry(pool);

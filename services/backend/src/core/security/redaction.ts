@@ -11,9 +11,14 @@ export const PINO_REDACT_PATHS = [
   "req.body.apiKey",
   "req.body.providerKeys",
   "req.body.providerKeys.*",
+  "req.body.toolKeys",
+  "req.body.toolKeys.*",
+  "req.body.webhookSecret",
   "req.headers.authorization",
   "*.apiKey",
   "*.providerKeys",
+  "*.toolKeys",
+  "*.webhookSecret",
   '*.parts[*].data.apiKey',
 ];
 

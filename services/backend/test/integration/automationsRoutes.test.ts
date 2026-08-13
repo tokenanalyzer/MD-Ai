@@ -272,7 +272,6 @@ describe("Signed webhook trigger route — the one deliberate exception to beare
   });
 
   it("404s a non-webhook automation's slug lookup (there is none — only triggerType='webhook' rows ever get a slug), proving trigger_type is re-checked server-side too", async () => {
-    const token = await pairedToken();
     // A manual automation has no webhook_slug at all, so any guessed slug 404s.
     const res = await request(app)
       .post("/webhooks/automations/guessed-slug-for-a-manual-automation")

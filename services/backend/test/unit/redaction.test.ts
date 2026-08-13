@@ -27,4 +27,9 @@ describe("redaction", () => {
     expect(PINO_REDACT_PATHS).toContain("req.body.providerKeys");
     expect(PINO_REDACT_PATHS).toContain("req.headers.authorization");
   });
+
+  it("declares redact paths for search-provider tool keys and webhook secrets (M4/M10)", () => {
+    expect(PINO_REDACT_PATHS).toContain("req.body.toolKeys");
+    expect(PINO_REDACT_PATHS).toContain("req.body.webhookSecret");
+  });
 });

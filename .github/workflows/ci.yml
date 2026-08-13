@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  typecheck-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm lint
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: mdai
+          POSTGRES_PASSWORD: mdai
+          POSTGRES_DB: mdai_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mdai"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Backend integration tests run against these real services (not
+      # mocks) — see services/backend/test/setupEnv.ts for the exact
+      # connection strings/defaults this matches.
+      - name: Backend test suite
+        run: pnpm --filter @mdai/backend test
+        env:
+          DATABASE_URL: postgres://mdai:mdai@localhost:5432/mdai_test
+          REDIS_URL: redis://localhost:6379/1
+      - name: Mobile test suite (pure logic, no backend/emulator required)
+        run: pnpm --filter @mdai/mobile test
+
+  docker-build-arm64:
+    runs-on: ubuntu-latest
+    # 08-deployment-architecture.md §6: every image this project ships
+    # targets linux/arm64 (Oracle Ampere A1) — build must succeed for
+    # arm64 specifically, not just the runner's native amd64. Build-only
+    # (no push): this job proves the Dockerfile still produces a working
+    # arm64 image, it doesn't publish one.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/backend.Dockerfile
+          platforms: linux/arm64
+          push: false

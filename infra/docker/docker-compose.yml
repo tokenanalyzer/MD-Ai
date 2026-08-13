@@ -51,6 +51,24 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
 
+  # docs/architecture/08-deployment-architecture.md §3-4: reverse proxy +
+  # TLS termination point, always part of the topology (unlike n8n, not
+  # profile-gated). See infra/docker/Caddyfile for the Tunnel/direct-
+  # exposure/WireGuard mode notes — the default Caddyfile assumes Tunnel
+  # mode and binds only to localhost, so it adds no new inbound exposure
+  # until an operator deliberately changes it for direct-exposure mode.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:80:80"
+
   # M10: optional automation engine — see infra/n8n/README.md and
   # docs/architecture/08-deployment-architecture.md §7. Never started by
   # `docker compose up` on its own; requires `--profile automation`
@@ -78,3 +96,5 @@ volumes:
   postgres-data:
   redis-data:
   n8n-data:
+  caddy-data:
+  caddy-config:

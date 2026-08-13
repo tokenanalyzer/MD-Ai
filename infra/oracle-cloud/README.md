@@ -25,10 +25,22 @@ exposure).
    provider key belongs in this file — see
    `docs/architecture/07-security-model.md` §3.
 4. `docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml up -d`
-5. Run migrations (`services/backend/src/db/migrations`) against the
-   `postgres` service.
-6. Configure the chosen networking mode (Tunnel/WireGuard/direct).
-7. Pair the Android app using the single-use pairing code printed to the
+   — this also starts `caddy` (see `infra/docker/Caddyfile`) and applies
+   the resource limits from `docker-compose.prod.yml`. Migrations run
+   automatically on backend boot (`src/index.ts` calls `runMigrations`) —
+   no separate migration step needed.
+5. Configure the chosen networking mode:
+   - **Cloudflare Tunnel (default)**: install `cloudflared` on the
+     instance (outside this compose file — it needs your own tunnel
+     token) pointing at `http://localhost:80` (Caddy). The shipped
+     `Caddyfile` already assumes this mode (plain `:80`, no ACME).
+   - **Direct exposure**: edit `infra/docker/Caddyfile` to your real
+     domain + `tls` directive per the comments in that file, and change
+     `caddy`'s port binding in `docker-compose.yml` to expose `:443`
+     publicly.
+   - **WireGuard**: skip `caddy` entirely — the phone reaches `backend`
+     directly over the VPN interface.
+6. Pair the Android app using the single-use pairing code printed to the
    backend's boot log.
 
 ## Backups

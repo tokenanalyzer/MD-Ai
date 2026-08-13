@@ -226,19 +226,19 @@ those changes are folded into the doc set as of M1.
 - See `docs/architecture/12-bot-engine.md` for the full design and the
   M5 completion report for the 15-point summary.
 
-## M6 — Event streaming + 2D Command Center
+## M6 — Event streaming + 2D Command Center — **delivered**
 - `core/events` bus + `/ws/events` gateway with resume-by-cursor.
 - Mobile: 2D live node/edge graph (agents, bots, task paths) — same event
   schema the eventual 3D scene will use, validated against real traffic
   before investing in 3D rendering.
 
-## M7 — 3D Command Center
+## M7 — 3D Command Center — **delivered**
 - `@react-three/fiber` scene replacing the 2D graph, same event stream.
 - WebGL-availability fallback path (mandatory, see `01-repository-structure.md`
   §2) so the app degrades to the 2D graph rather than failing silently.
 - Zoom/rotate/focus, agent detail panels, live telemetry overlays.
 
-## M8 — Remaining specialist agents + Guardian
+## M8 — Remaining specialist agents + Guardian — **delivered**
 - `crypto-intel`, `stock-intel`, `business-intel`, `social-media`,
   `ai-radar`, `news-intel`.
 - Remaining bots: `market-scanner`, `liquidity-monitor`,
@@ -248,20 +248,50 @@ those changes are folded into the doc set as of M1.
   (policy checks that were manual/absent before this point become
   automatic).
 
-## M9 — Evolution Engine
+## M9 — Evolution Engine — **delivered**
 - Model/tool discovery sweeps, benchmarking of configured models,
   outcome-based routing policy updates.
 - `evolution_proposals` pipeline including sandbox testing.
 - Approval UI in the app for `application_code_update` /
   approval-required `skill_update` proposals.
 
-## M10 — Automation + action layer integration points
+## M10 — Automation + action layer integration points — **delivered**
 - n8n optional compose profile + `automations` ↔ n8n workflow wiring.
 - OpenClaw connected as an MCP tool source (still optional, not required
   for the app to be fully usable).
 - PC client foundation: extract `packages/shared-types` + as much of
   `apps/mobile/src/features` as is framework-agnostic into a shape a
   desktop client (Electron/Tauri or a Next.js PWA) can reuse directly.
+
+## M11 — Full system audit + real-world validation — **delivered**
+- Repository-wide audit against this doc set: found and classified 11
+  findings (2 HIGH, 4 MEDIUM, 3 LOW, 2 INFORMATIONAL). Confirmed the
+  `arm64` CI build gate promised above and `docker-compose.prod.yml`
+  (referenced by `infra/oracle-cloud/README.md` since M1/M10) never
+  actually existed until this milestone.
+- Fixed: added `.github/workflows/ci.yml` (typecheck+lint, backend+mobile
+  tests against real Postgres/Redis service containers, `linux/arm64`
+  Docker build check); added `docker-compose.prod.yml` (resource limits
+  matching `08-deployment-architecture.md` §2's budget table) and a real
+  `caddy` service + `Caddyfile` (previously documented, never built);
+  made `pnpm lint` actually work (`eslint.config.js` — it was declared in
+  `package.json` but had no config at all); gave `packages/client-core`
+  its first real tests (was typecheck-only since M10); closed a
+  redaction-path gap for `toolKeys`/`webhookSecret`; corrected
+  `.env.example` (removed a dead `FCM_SERVICE_ACCOUNT_JSON` var, added
+  the real `MDAI_BACKGROUND_KEY_KEK`/`MDAI_EXTERNAL_MCP_SERVERS`).
+- Ran the full backend (305 tests) and mobile (19 tests) suites against
+  real Postgres/Redis, plus client-core's new 13 tests — 337 tests, zero
+  regressions, all 4 workspace typechecks clean.
+- **Explicitly not done, honestly**: no real NVIDIA/Gemini/Groq/SambaNova/
+  OpenRouter API keys are configured in this environment, so live
+  provider verification is UNVERIFIED, not fabricated. No Android device
+  or emulator is available in this environment, so on-device testing is
+  BLOCKED — a full 20-item device test checklist and exact `eas build`
+  commands are provided instead. Docker image builds are blocked by this
+  environment's own network policy (verified via a 403 at the policy
+  proxy, not a code defect). See the M11 completion report for the full,
+  precise verified/unverified breakdown.
 
 ## Cross-cutting, present from M1 onward (not a separate milestone)
 - Unit tests for core logic (router ranking, event schema, encryption

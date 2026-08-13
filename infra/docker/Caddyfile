@@ -1,0 +1,24 @@
+# MD AI reverse proxy — docs/architecture/08-deployment-architecture.md §3-4.
+#
+# Default mode: Cloudflare Tunnel. `cloudflared` (run separately, outside
+# this compose file — it needs a real per-deployment tunnel token) makes an
+# outbound-only connection to Cloudflare and forwards to this Caddy instance
+# on plain HTTP; Cloudflare terminates TLS at the edge, so no inbound port
+# needs to be opened on the Oracle instance at all. That's why this listens
+# on :80, not :443, and has no `tls` directive — Caddy is only ever reached
+# over localhost/the tunnel, never directly from the internet in this mode.
+#
+# Direct-exposure mode (not the default — see §4 for why): replace the
+# `:80 {` line below with your real domain (`your-domain.example.com {`)
+# and add a `tls your@email.example.com` directive; Caddy will then obtain
+# and renew a Let's Encrypt certificate automatically. This requires a real
+# public DNS record and an open :443 on the instance's security list/NSG,
+# which is exactly the exposure Tunnel mode is designed to avoid.
+#
+# WireGuard mode: no reverse proxy is needed at all — the phone reaches
+# `backend` directly over the VPN interface. Don't run this Caddy service
+# in that mode.
+
+:80 {
+	reverse_proxy backend:8080
+}

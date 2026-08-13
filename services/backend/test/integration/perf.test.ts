@@ -120,7 +120,6 @@ describe("M3 performance measurement (M3.12)", () => {
       events: after.events! - before.events!,
       model_call_samples: after.model_call_samples! - before.model_call_samples!,
     };
-    // eslint-disable-next-line no-console
     console.log("[M3.12] direct-answer turn DB row delta:", directAnswerDelta);
 
     // A direct-answer turn is one task, two messages (user+agent), and a
@@ -171,7 +170,6 @@ describe("M3 performance measurement (M3.12)", () => {
       events: after.events! - before.events!,
       model_call_samples: after.model_call_samples! - before.model_call_samples!,
     };
-    // eslint-disable-next-line no-console
     console.log(
       `[M3.12] delegation-tree turn DB row delta: ${JSON.stringify(delegationDelta)}` +
         ` — backend-side wall time (mocked provider calls, so this excludes real inference/network latency): ${elapsedMs.toFixed(1)}ms`,
@@ -199,7 +197,6 @@ describe("M3 performance measurement (M3.12)", () => {
     if (global.gc) global.gc();
     const rssAfter = process.memoryUsage().rss;
     const rssDeltaMb = (rssAfter - rssBefore) / (1024 * 1024);
-    // eslint-disable-next-line no-console
     console.log(
       `[M3.12] process RSS after ${ITERATIONS} more delegation-tree turns: ${(rssAfter / 1024 / 1024).toFixed(1)}MB` +
         ` (delta ${rssDeltaMb.toFixed(1)}MB, ${(rssDeltaMb / ITERATIONS).toFixed(2)}MB/turn)` +

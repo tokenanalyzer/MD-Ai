@@ -22,7 +22,7 @@ let unsubscribe: (() => void) | undefined;
  * (filtered client-side by sourceId/type) rather than each screen
  * opening its own WS connection.
  */
-export const useEventsStore = create<EventsState>((set, get) => ({
+export const useEventsStore = create<EventsState>((set) => ({
   events: [],
   liveIds: new Set(),
   connection: "idle",

@@ -24,7 +24,6 @@ export function ConnectionLine({ connection, angle, radius, reducedMotion }: Pro
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
     const material = new THREE.LineBasicMaterial({ color: colors.border, transparent: true, opacity: 0.25 });
     return new THREE.Line(geometry, material);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

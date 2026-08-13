@@ -3,7 +3,6 @@ import type { Logger } from "pino";
 import { AppError } from "../errors.js";
 
 export function errorHandler(logger: Logger) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
     if (err instanceof AppError) {
       if (err.status >= 500) logger.error({ err, path: req.path }, "request failed");

@@ -25,7 +25,6 @@ const { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, autom
 const app = createApp({ pool, redis, queues: [], eventBus: new EventBus(pool), modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine, logger });
 
 let server: Server;
-let baseUrl: string;
 let wsBaseUrl: string;
 
 beforeAll(async () => {
@@ -33,7 +32,6 @@ beforeAll(async () => {
   attachChatGateway(server, pool);
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const { port } = server.address() as AddressInfo;
-  baseUrl = `http://127.0.0.1:${port}`;
   wsBaseUrl = `ws://127.0.0.1:${port}`;
 });
 
