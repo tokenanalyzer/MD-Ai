@@ -35,8 +35,9 @@ export default tseslint.config(
   {
     // Root-level CJS tool configs (babel/metro/etc.) — `module`/`require` are
     // real Node CommonJS globals here, not undeclared variables.
-    files: ["**/babel.config.js", "**/metro.config.js", "**/jest.config.js"],
+    files: ["**/babel.config.js", "**/metro.config.js", "**/jest.config.js", "**/fingerprint.config.js"],
     languageOptions: { globals: globals.node, sourceType: "commonjs" },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
     // React Native/Expo screens and hooks (apps/mobile) — enforces the
