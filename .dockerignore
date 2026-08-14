@@ -1,0 +1,27 @@
+# Applies to every image built from this repo root (currently only
+# infra/docker/backend.Dockerfile). Its COPY instructions are all explicit
+# (e.g. `COPY services/backend services/backend`), never `COPY . .`, but
+# Docker still applies .dockerignore to those paths — without this file, a
+# local pre-built services/backend/node_modules or dist (from running
+# `pnpm install`/`pnpm build` on the host, e.g. for local dev/tests) gets
+# copied straight into the build stage's services/backend directory,
+# overwriting the node_modules that stage's own `pnpm install` just
+# produced for the *target* platform. That's silently wrong output on any
+# cross-architecture build (e.g. building linux/amd64 for Cloud Run from an
+# arm64/Oracle dev machine, or vice versa) — excluding these forces every
+# build to only ever use what RUN pnpm install produces inside the image.
+
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+
+# Not needed by the backend image and would otherwise bloat the build
+# context sent to the Docker/Cloud Build daemon — the Dockerfile never
+# COPYs these paths.
+apps/mobile
+docs
+infra/n8n
+infra/oracle-cloud
