@@ -4,3 +4,14 @@ packages:
   - packages/*
 
 minimumReleaseAge: 1440
+
+# pnpm 10 ignores dependency install/postinstall scripts by default (a
+# supply-chain hardening change) unless explicitly allowlisted here. Only
+# the native build steps this repo actually relies on are listed — nothing
+# blanket-enabled:
+#   - esbuild: tsx's (services/backend devDependency) TS transform engine
+#   - msgpackr-extract: msgpackr's native accelerator, used transitively
+#     via bullmq/ioredis's MessagePack encoding
+onlyBuiltDependencies:
+  - esbuild
+  - msgpackr-extract

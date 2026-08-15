@@ -40,4 +40,4 @@ COPY --from=deps /app/services/backend/node_modules services/backend/node_module
 COPY --from=deps /app/packages/shared-types packages/shared-types
 WORKDIR /app/services/backend
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/src/index.js"]
