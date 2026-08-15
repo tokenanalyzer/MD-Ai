@@ -22,7 +22,7 @@ import type { AutomationEngine } from "../../core/automations/automationEngine.j
  * separate from `automationsRouter` so that omission is structural, not a
  * per-route judgment call.
  */
-export function webhooksRouter(pool: pg.Pool, automationEngine: AutomationEngine): Router {
+export function webhooksRouter(pool: pg.Pool, automationEngine: AutomationEngine | undefined): Router {
   const router = Router();
 
   router.post("/automations/:slug", async (req, res, next) => {
@@ -52,6 +52,12 @@ export function webhooksRouter(pool: pg.Pool, automationEngine: AutomationEngine
       const rawBody = req.rawBody ?? Buffer.alloc(0);
       if (!verifyWebhookSignature(secret, rawBody, signature)) {
         throw AppError.unauthorized("Invalid signature");
+      }
+
+      if (!automationEngine) {
+        throw AppError.serviceUnavailable(
+          "Automation Engine is unavailable — REDIS_URL is not configured on this backend",
+        );
       }
 
       // Fast ack — the automation's own action (which may be a full

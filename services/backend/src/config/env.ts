@@ -4,7 +4,11 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().min(1),
+  // Optional: absence disables Redis/BullMQ entirely (Bot Engine, Automation
+  // Engine, and the 3 maintenance workers) rather than failing to boot — see
+  // index.ts's conditional initialization. Core chat/pairing/provider-vault
+  // functionality never depended on Redis to begin with.
+  REDIS_URL: z.string().min(1).optional(),
   MDAI_JWT_SECRET: z.string().min(16, "MDAI_JWT_SECRET must be at least 16 characters"),
   MDAI_PAIRING_CODE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
   // M5.12a: key-encrypting key for the opt-in background credential vault

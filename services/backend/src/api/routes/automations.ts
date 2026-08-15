@@ -43,7 +43,7 @@ function toDto(row: AutomationRow) {
  * without `authGuard` — everything here requires the normal device bearer
  * token.
  */
-export function automationsRouter(pool: pg.Pool, automationEngine: AutomationEngine): Router {
+export function automationsRouter(pool: pg.Pool, automationEngine: AutomationEngine | undefined): Router {
   const router = Router();
   router.use(authGuard(pool));
 
@@ -158,6 +158,11 @@ export function automationsRouter(pool: pg.Pool, automationEngine: AutomationEng
     try {
       const existing = await getAutomation(pool, req.params.id as string);
       if (!existing) throw AppError.notFound(`Automation ${req.params.id} not found`);
+      if (!automationEngine) {
+        throw AppError.serviceUnavailable(
+          "Automation Engine is unavailable — REDIS_URL is not configured on this backend",
+        );
+      }
       const run = await automationEngine.runNow(existing.id, "manual");
       res.status(202).json({
         data: {

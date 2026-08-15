@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import pino from "pino";
+import type { Redis } from "ioredis";
+import type { Queue, Worker } from "bullmq";
 import { installSsrfSafeDispatcher } from "./core/security/ssrfSafeDispatcher.js";
 import { loadEnv } from "./config/env.js";
 import { getPool, closePool } from "./db/pool.js";
@@ -78,7 +80,6 @@ async function main(): Promise<void> {
     logger.info(`\n\n  MD AI pairing code (single use, expires in ${env.MDAI_PAIRING_CODE_TTL_MINUTES}m): ${code}\n`);
   }
 
-  const redis = getRedisConnection();
   const eventBus = new EventBus(pool);
   const modelRegistry = new ModelRegistryService(pool);
   const agentRegistry = new AgentRegistryService(pool);
@@ -131,71 +132,93 @@ async function main(): Promise<void> {
     }
   }
 
-  // M5.7-M5.11: exactly four bots, no hardcoded scheduler list — the Bot
-  // Engine only ever dispatches to what's registered here *and* marked
-  // `enabled` in the DB (migration 0020's seed rows). Explicitly NOT
-  // crypto/stock trading bots or exchange execution — see
-  // docs/architecture/12-bot-engine.md §1.
-  botRegistry.register(aiModelReleaseMonitor);
-  botRegistry.register(newsMonitor);
-  botRegistry.register(createUserTopicMonitor(pool));
-  botRegistry.register(createSystemHealthMonitor(pool, redis));
+  // Redis/BullMQ (Bot Engine, Automation Engine, and the 3 maintenance
+  // workers) is entirely optional — REDIS_URL absent means none of this
+  // block runs and no Redis connection is attempted at all (getRedisConnection()
+  // itself would throw if called without it configured). Everything above
+  // this point (auth/pairing, agents, tools, chat) has no Redis dependency
+  // and is unaffected either way — see docs/architecture note in env.ts.
+  let redis: Redis | undefined;
+  let botEngine: BotEngine | undefined;
+  let automationEngine: AutomationEngine | undefined;
+  let eventsRetentionQueue: Queue | undefined;
+  let eventsRetentionWorker: Worker | undefined;
+  let healthRollupQueue: Queue | undefined;
+  let healthRollupWorker: Worker | undefined;
+  let evolutionSweepQueue: Queue | undefined;
+  let evolutionSweepWorker: Worker | undefined;
+  let queues: Queue[] = [];
 
-  // M8 remaining bots — same deterministic SearchProvider pattern as News
-  // Monitor (M5.9); see docs/architecture/09-roadmap.md M8.
-  botRegistry.register(marketScanner);
-  botRegistry.register(liquidityMonitor);
-  botRegistry.register(volumeAnomalyMonitor);
-  botRegistry.register(socialTrendMonitor);
-  botRegistry.register(businessOpportunityMonitor);
+  if (env.REDIS_URL) {
+    redis = getRedisConnection();
 
-  const botEngine = new BotEngine({
-    pool,
-    eventBus,
-    botRegistry,
-    modelRegistry,
-    agentRegistry,
-    toolRegistry,
-    ownerId: owner.id,
-    notificationSender: expoPushSender,
-  });
-  await botEngine.start();
+    // M5.7-M5.11: exactly four bots, no hardcoded scheduler list — the Bot
+    // Engine only ever dispatches to what's registered here *and* marked
+    // `enabled` in the DB (migration 0020's seed rows). Explicitly NOT
+    // crypto/stock trading bots or exchange execution — see
+    // docs/architecture/12-bot-engine.md §1.
+    botRegistry.register(aiModelReleaseMonitor);
+    botRegistry.register(newsMonitor);
+    botRegistry.register(createUserTopicMonitor(pool));
+    botRegistry.register(createSystemHealthMonitor(pool, redis));
 
-  // M10: n8n/agent-task/notification automations — see core/automations/automationEngine.ts.
-  const automationEngine = new AutomationEngine({
-    pool,
-    eventBus,
-    modelRegistry,
-    agentRegistry,
-    toolRegistry,
-    ownerId: owner.id,
-    notificationSender: expoPushSender,
-  });
-  await automationEngine.start();
+    // M8 remaining bots — same deterministic SearchProvider pattern as News
+    // Monitor (M5.9); see docs/architecture/09-roadmap.md M8.
+    botRegistry.register(marketScanner);
+    botRegistry.register(liquidityMonitor);
+    botRegistry.register(volumeAnomalyMonitor);
+    botRegistry.register(socialTrendMonitor);
+    botRegistry.register(businessOpportunityMonitor);
 
-  const eventsRetentionQueue = createEventsRetentionQueue();
-  const eventsRetentionWorker = createEventsRetentionWorker(pool);
-  await scheduleEventsRetentionRepeatable(eventsRetentionQueue);
+    botEngine = new BotEngine({
+      pool,
+      eventBus,
+      botRegistry,
+      modelRegistry,
+      agentRegistry,
+      toolRegistry,
+      ownerId: owner.id,
+      notificationSender: expoPushSender,
+    });
+    await botEngine.start();
 
-  const healthRollupQueue = createHealthRollupQueue();
-  const healthRollupWorker = createHealthRollupWorker(pool);
-  await scheduleHealthRollupRepeatable(healthRollupQueue);
+    // M10: n8n/agent-task/notification automations — see core/automations/automationEngine.ts.
+    automationEngine = new AutomationEngine({
+      pool,
+      eventBus,
+      modelRegistry,
+      agentRegistry,
+      toolRegistry,
+      ownerId: owner.id,
+      notificationSender: expoPushSender,
+    });
+    await automationEngine.start();
 
-  // M9: discovery + benchmarking sweeps — see core/evolution/producer.ts.
-  const evolutionSweepQueue = createEvolutionSweepQueue();
-  const evolutionSweepWorker = createEvolutionSweepWorker(pool, eventBus, modelRegistry, memoryEngine);
-  await scheduleEvolutionSweepRepeatable(evolutionSweepQueue);
+    eventsRetentionQueue = createEventsRetentionQueue();
+    eventsRetentionWorker = createEventsRetentionWorker(pool);
+    await scheduleEventsRetentionRepeatable(eventsRetentionQueue);
 
-  // M6: the Bot Engine's own queue joins /health's telemetry (bot-engine
-  // job counts weren't visible there before this milestone).
-  const botEngineQueue = botEngine.getQueue();
-  const automationEngineQueue = automationEngine.getQueue();
+    healthRollupQueue = createHealthRollupQueue();
+    healthRollupWorker = createHealthRollupWorker(pool);
+    await scheduleHealthRollupRepeatable(healthRollupQueue);
 
-  const baseQueues = [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue];
-  const queues = [botEngineQueue, automationEngineQueue].reduce(
-    (acc, q) => (q ? [...acc, q] : acc),
-    baseQueues,
-  );
+    // M9: discovery + benchmarking sweeps — see core/evolution/producer.ts.
+    evolutionSweepQueue = createEvolutionSweepQueue();
+    evolutionSweepWorker = createEvolutionSweepWorker(pool, eventBus, modelRegistry, memoryEngine);
+    await scheduleEvolutionSweepRepeatable(evolutionSweepQueue);
+
+    // M6: the Bot Engine's own queue joins /health's telemetry (bot-engine
+    // job counts weren't visible there before this milestone).
+    const botEngineQueue = botEngine.getQueue();
+    const automationEngineQueue = automationEngine.getQueue();
+
+    const baseQueues = [eventsRetentionQueue, healthRollupQueue, evolutionSweepQueue];
+    queues = [botEngineQueue, automationEngineQueue].reduce((acc, q) => (q ? [...acc, q] : acc), baseQueues);
+  } else {
+    logger.warn(
+      "REDIS_URL is not configured — Bot Engine, Automation Engine, and maintenance workers are disabled. Core chat, pairing, and provider functionality are unaffected.",
+    );
+  }
 
   const app = createApp({
     pool,
@@ -222,15 +245,15 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received, shutting down`);
     server.close();
-    await botEngine.stop();
-    await automationEngine.stop();
-    await eventsRetentionWorker.close();
-    await eventsRetentionQueue.close();
-    await healthRollupWorker.close();
-    await healthRollupQueue.close();
-    await evolutionSweepWorker.close();
-    await evolutionSweepQueue.close();
-    await closeRedisConnection();
+    await botEngine?.stop();
+    await automationEngine?.stop();
+    await eventsRetentionWorker?.close();
+    await eventsRetentionQueue?.close();
+    await healthRollupWorker?.close();
+    await healthRollupQueue?.close();
+    await evolutionSweepWorker?.close();
+    await evolutionSweepQueue?.close();
+    if (redis) await closeRedisConnection();
     await closePool();
     process.exit(0);
   };

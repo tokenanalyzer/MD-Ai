@@ -9,7 +9,7 @@ import { listRecentBotRuns } from "../../db/repositories/botRunRepo.js";
 import { listRecentFindings } from "../../db/repositories/botFindingRepo.js";
 
 /** M5.16's Bot Fleet screen backend — list/enable/disable/pause/resume/run-once, plus recent runs/findings for the detail view. */
-export function botsRouter(pool: pg.Pool, botRegistry: BotRegistry, botEngine: BotEngine): Router {
+export function botsRouter(pool: pg.Pool, botRegistry: BotRegistry, botEngine: BotEngine | undefined): Router {
   const router = Router();
   router.use(authGuard(pool));
 
@@ -87,6 +87,9 @@ export function botsRouter(pool: pg.Pool, botRegistry: BotRegistry, botEngine: B
       const botId = req.params.id as string;
       const existing = await botRegistry.get(botId);
       if (!existing) throw AppError.notFound(`Bot ${botId} not found`);
+      if (!botEngine) {
+        throw AppError.serviceUnavailable("Bot Engine is unavailable — REDIS_URL is not configured on this backend");
+      }
       const run = await botEngine.runNow(botId);
       res.status(202).json({ data: run });
     } catch (err) {

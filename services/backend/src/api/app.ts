@@ -30,7 +30,9 @@ import { webhooksRouter } from "./routes/webhooks.js";
 
 export interface AppDeps {
   pool: pg.Pool;
-  redis: Redis;
+  // Absent exactly when REDIS_URL isn't configured — see index.ts. Routes
+  // that need these must degrade cleanly rather than assume presence.
+  redis: Redis | undefined;
   queues: Queue[];
   eventBus: EventBus;
   modelRegistry: ModelRegistry;
@@ -38,8 +40,8 @@ export interface AppDeps {
   memoryEngine: MemoryEngine;
   toolRegistry: ToolRegistryService;
   botRegistry: BotRegistry;
-  botEngine: BotEngine;
-  automationEngine: AutomationEngine;
+  botEngine: BotEngine | undefined;
+  automationEngine: AutomationEngine | undefined;
   logger: Logger;
 }
 

@@ -20,4 +20,7 @@ export class AppError extends Error {
   static notFound(message = "Not found", code = "not_found"): AppError {
     return new AppError(404, code, message);
   }
+  static serviceUnavailable(message: string, code = "service_unavailable"): AppError {
+    return new AppError(503, code, message);
+  }
 }

@@ -10,13 +10,17 @@ export interface HealthReport {
   cpu: { loadavg1: number; loadavg5: number; loadavg15: number; cpuCount: number };
   memory: { processRssMb: number; systemFreeMb: number; systemTotalMb: number };
   postgres: { ok: boolean; latencyMs?: number; poolTotal: number; poolIdle: number; poolWaiting: number; error?: string };
-  redis: { ok: boolean; latencyMs?: number; usedMemoryMb?: number; connectedClients?: number; error?: string };
+  // `disabled: true` means REDIS_URL isn't configured — Bot Engine,
+  // Automation Engine, and maintenance workers are intentionally off, not
+  // erroring. `ok` stays true in that case so this alone never flips
+  // overall `status` to "error".
+  redis: { ok: boolean; disabled?: boolean; latencyMs?: number; usedMemoryMb?: number; connectedClients?: number; error?: string };
   queues: { name: string; waiting: number; active: number; completed: number; failed: number; workerCount: number }[];
   requestLatency: Record<string, RouteLatencyStats>;
 }
 
 /** Resource telemetry (docs/architecture/08-deployment-architecture.md §9.1). Cheap enough to compute per /health call at M1 scale. */
-export async function buildHealthReport(deps: { pool: pg.Pool; redis: Redis; queues: Queue[] }): Promise<HealthReport> {
+export async function buildHealthReport(deps: { pool: pg.Pool; redis: Redis | undefined; queues: Queue[] }): Promise<HealthReport> {
   const load = os.loadavg();
   const cpu = { loadavg1: load[0] ?? 0, loadavg5: load[1] ?? 0, loadavg15: load[2] ?? 0, cpuCount: os.cpus().length };
   const memory = {
@@ -47,21 +51,25 @@ export async function buildHealthReport(deps: { pool: pg.Pool; redis: Redis; que
   }
 
   let redis: HealthReport["redis"];
-  try {
-    const start = Date.now();
-    await deps.redis.ping();
-    const latencyMs = Date.now() - start;
-    const info = await deps.redis.info("memory,clients");
-    const usedMemoryMatch = /used_memory:(\d+)/.exec(info);
-    const clientsMatch = /connected_clients:(\d+)/.exec(info);
-    redis = {
-      ok: true,
-      latencyMs,
-      usedMemoryMb: usedMemoryMatch?.[1] ? Math.round(Number(usedMemoryMatch[1]) / 1024 / 1024) : undefined,
-      connectedClients: clientsMatch?.[1] ? Number(clientsMatch[1]) : undefined,
-    };
-  } catch (err) {
-    redis = { ok: false, error: (err as Error).message };
+  if (!deps.redis) {
+    redis = { ok: true, disabled: true };
+  } else {
+    try {
+      const start = Date.now();
+      await deps.redis.ping();
+      const latencyMs = Date.now() - start;
+      const info = await deps.redis.info("memory,clients");
+      const usedMemoryMatch = /used_memory:(\d+)/.exec(info);
+      const clientsMatch = /connected_clients:(\d+)/.exec(info);
+      redis = {
+        ok: true,
+        latencyMs,
+        usedMemoryMb: usedMemoryMatch?.[1] ? Math.round(Number(usedMemoryMatch[1]) / 1024 / 1024) : undefined,
+        connectedClients: clientsMatch?.[1] ? Number(clientsMatch[1]) : undefined,
+      };
+    } catch (err) {
+      redis = { ok: false, error: (err as Error).message };
+    }
   }
 
   const queues = await Promise.all(

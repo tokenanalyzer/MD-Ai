@@ -5,7 +5,7 @@ import type { Queue } from "bullmq";
 import { authGuard } from "../middleware/authGuard.js";
 import { buildHealthReport } from "../../core/observability/health.js";
 
-export function healthRouter(pool: pg.Pool, redis: Redis, queues: Queue[]): Router {
+export function healthRouter(pool: pg.Pool, redis: Redis | undefined, queues: Queue[]): Router {
   const router = Router();
 
   // Full telemetry (docs/architecture/08-deployment-architecture.md §9.1) is
