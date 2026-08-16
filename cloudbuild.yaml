@@ -1,0 +1,32 @@
+# Google Cloud Build config for services/backend.
+#
+# `gcloud builds submit --tag <image> .` has no flag to point at a
+# Dockerfile outside the submitted source root (its implicit-build mode
+# only ever looks for ./Dockerfile) — infra/docker/backend.Dockerfile lives
+# away from the repo root by design (its COPY paths span
+# pnpm-workspace.yaml, packages/shared-types, and services/backend), so an
+# explicit build step is required instead. Invoke with:
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_IMAGE=asia-south1-docker.pkg.dev/md-ai-1990/mdai/mdai-backend:<tag> \
+#     .
+#
+# Cloud Build's standard workers are amd64, matching Cloud Run's
+# requirement — no explicit --platform flag needed the way a local
+# buildx cross-build would (see the Dockerfile's own header comment).
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "infra/docker/backend.Dockerfile"
+      - "-t"
+      - "${_IMAGE}"
+      - "."
+
+images:
+  - "${_IMAGE}"
+
+substitutions:
+  _IMAGE: "asia-south1-docker.pkg.dev/md-ai-1990/mdai/mdai-backend:latest"
