@@ -7,14 +7,20 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0a0d0c",
+    "icon": "./assets/logo.png",
     "platforms": ["android", "web"],
     "android": {
       "package": "com.venom31.mdai",
-      "backgroundColor": "#0a0d0c"
+      "backgroundColor": "#0a0d0c",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#0a0d0c"
+      }
     },
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/logo.png"
     },
     "plugins": ["expo-router", "expo-secure-store", "expo-dev-client", "expo-notifications"],
     "extra": {

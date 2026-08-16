@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Image } from "react-native";
 import { Link } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
@@ -25,9 +25,12 @@ export default function CommandCenterScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPadding }]}>
-        <View>
-          <Text style={styles.title}>MD AI</Text>
-          <Text style={styles.subtitle}>Command Center</Text>
+        <View style={styles.titleRow}>
+          <Image source={require("../../assets/logo.png")} style={styles.logo} accessibilityLabel="MD AI" />
+          <View>
+            <Text style={styles.title}>MD AI</Text>
+            <Text style={styles.subtitle}>Command Center</Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <Link href="/(chat)" asChild>
@@ -67,6 +70,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  logo: { width: 32, height: 32, borderRadius: radius.sm },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
   subtitle: { color: colors.accent, fontSize: typography.fontSize.xs, fontWeight: "600", letterSpacing: typography.letterSpacingWide, textTransform: "uppercase", marginTop: 2 },
   headerActions: { flexDirection: "row", gap: spacing.sm },

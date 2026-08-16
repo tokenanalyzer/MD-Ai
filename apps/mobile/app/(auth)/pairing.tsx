@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, StyleSheet, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
@@ -41,6 +41,7 @@ export default function PairingScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.content}>
+        <Image source={require("../../assets/logo.png")} style={styles.logo} accessibilityLabel="MD AI" />
         <Text style={styles.title}>MD AI</Text>
         <Text style={styles.subtitle}>Private personal intelligence, running on your own backend.</Text>
 
@@ -96,6 +97,7 @@ export default function PairingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgBase },
   content: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.xl },
+  logo: { width: 88, height: 88, borderRadius: radius.lg, alignSelf: "center", marginBottom: spacing.md },
   title: {
     color: colors.textPrimary,
     fontSize: 34,

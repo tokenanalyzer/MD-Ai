@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Image,
 } from "react-native";
 import { Link } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
@@ -46,25 +47,28 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.header, { paddingTop: topPadding }]}>
-        <View>
-          <Text style={styles.headerTitle}>MD AI</Text>
-          <View style={styles.statusRow}>
-            <PulseDot
-              color={connection === "error" ? colors.danger : connection === "working" ? colors.secondary : colors.accent}
-              active={connection === "working"}
-              size={8}
-            />
-            <Text style={styles.statusText}>
-              {connection === "working"
-                ? (progressLabel ?? "Master Agent is answering…")
-                : connection === "error"
-                  ? "Connection issue"
-                  : "Ready"}
+        <View style={styles.titleRow}>
+          <Image source={require("../../assets/logo.png")} style={styles.logo} accessibilityLabel="MD AI" />
+          <View>
+            <Text style={styles.headerTitle}>MD AI</Text>
+            <View style={styles.statusRow}>
+              <PulseDot
+                color={connection === "error" ? colors.danger : connection === "working" ? colors.secondary : colors.accent}
+                active={connection === "working"}
+                size={8}
+              />
+              <Text style={styles.statusText}>
+                {connection === "working"
+                  ? (progressLabel ?? "Master Agent is answering…")
+                  : connection === "error"
+                    ? "Connection issue"
+                    : "Ready"}
+              </Text>
+            </View>
+            <Text style={styles.routingBadge}>
+              {routingMode === "manual" ? `MANUAL · ${preferredModelId ?? "pick a model in Vault"}` : "AUTO routing"}
             </Text>
           </View>
-          <Text style={styles.routingBadge}>
-            {routingMode === "manual" ? `MANUAL · ${preferredModelId ?? "pick a model in Vault"}` : "AUTO routing"}
-          </Text>
         </View>
         <View style={styles.headerActions}>
           <Link href="/(command-center)" asChild>
@@ -145,6 +149,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  logo: { width: 32, height: 32, borderRadius: radius.sm },
   headerTitle: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
   headerActions: { flexDirection: "row", gap: spacing.sm },
   statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 4 },
