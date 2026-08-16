@@ -20,15 +20,18 @@ const PROVIDER_CONFIGS: OpenAICompatibleConfig[] = [
     id: "nvidia-nemotron",
     displayName: "NVIDIA Nemotron",
     baseUrl: "https://integrate.api.nvidia.com/v1",
-    defaultModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+    // llama-3.1-nemotron-70b-instruct is stale (M1-era default);
+    // nemotron-3-super-120b-a12b is the current Nemotron 3 generation. See
+    // migration 0024.
+    defaultModel: "nvidia/nemotron-3-super-120b-a12b",
   },
   {
     id: "gemini",
     displayName: "Google Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    // gemini-1.5-flash is stale (M1-era default); Gemini 2.5 Flash is the
-    // current generation. See migration 0023.
-    defaultModel: "gemini-2.5-flash",
+    // gemini-1.5-flash, then gemini-2.5-flash, were both superseded —
+    // gemini-3.5-flash is the current GA generation. See migration 0024.
+    defaultModel: "gemini-3.5-flash",
   },
   {
     id: "groq",
@@ -43,7 +46,10 @@ const PROVIDER_CONFIGS: OpenAICompatibleConfig[] = [
     id: "sambanova",
     displayName: "SambaNova",
     baseUrl: "https://api.sambanova.ai/v1",
-    defaultModel: "Meta-Llama-3.1-70B-Instruct",
+    // Meta-Llama-3.1-70B-Instruct is stale (M1-era default);
+    // Meta-Llama-3.3-70B-Instruct is the current generation. See
+    // migration 0024.
+    defaultModel: "Meta-Llama-3.3-70B-Instruct",
   },
   {
     id: "openrouter",

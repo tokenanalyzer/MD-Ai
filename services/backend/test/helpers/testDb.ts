@@ -13,18 +13,21 @@ export async function getTestPool(): Promise<pg.Pool> {
 }
 
 /**
- * The model_registry rows seeded by migrations 0015/0017/0023 — the only
- * ones every test can rely on existing with known capability data.
+ * The model_registry rows seeded by migrations 0015/0017/0023/0024 — the
+ * only ones every test can rely on existing with known capability data.
  * Anything else is test-induced (discovery, manual edits) and must not
  * survive into the next test file.
  */
 const SEEDED_MODEL_IDS = [
   "nvidia-nemotron/nvidia/llama-3.1-nemotron-70b-instruct",
+  "nvidia-nemotron/nvidia/nemotron-3-super-120b-a12b",
   "gemini/gemini-1.5-flash",
   "gemini/gemini-2.5-flash",
+  "gemini/gemini-3.5-flash",
   "groq/llama-3.3-70b-versatile",
   "groq/openai/gpt-oss-120b",
   "sambanova/Meta-Llama-3.1-70B-Instruct",
+  "sambanova/Meta-Llama-3.3-70B-Instruct",
   "openrouter/meta-llama/llama-3.1-70b-instruct",
   "openrouter/meta-llama/llama-3.3-70b-instruct",
 ];
