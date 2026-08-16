@@ -15,9 +15,9 @@ export const colors = {
   textSecondary: "#9aa69f",
   textTertiary: "#647069",
 
-  accent: "#76ff2e", // restrained NVIDIA-inspired green — used sparingly, not as a background flood
-  accentDim: "#4f8f2e",
-  accentGlow: "rgba(118, 255, 46, 0.14)",
+  accent: "#76b900", // NVIDIA's actual trademark green (PMS 376C / RGB 118,185,0) — used sparingly, not as a background flood
+  accentDim: "#4d7800",
+  accentGlow: "rgba(118, 185, 0, 0.14)",
 
   secondary: "#3ec6ff", // cyan/blue secondary glow — routing/model info, not primary actions
   secondaryGlow: "rgba(62, 198, 255, 0.12)",
