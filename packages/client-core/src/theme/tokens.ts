@@ -4,12 +4,15 @@
  * cyan/blue secondary glow, technical and premium, not gaming RGB).
  */
 export const colors = {
-  bgBase: "#0a0d0c",
-  bgSurface: "#121614",
-  bgSurfaceRaised: "#181d1a",
-  bgGlass: "rgba(22, 28, 25, 0.72)",
-  border: "#232a26",
-  borderStrong: "#31392f34",
+  // NVIDIA's own dark surfaces are a true dark gray (#1a1a1a), not
+  // nearer-black — the old #0a0d0c read as pure black, which their own
+  // guidelines call out as the wrong reference tone.
+  bgBase: "#1a1a1a",
+  bgSurface: "#222322",
+  bgSurfaceRaised: "#282a28",
+  bgGlass: "rgba(34, 35, 34, 0.72)",
+  border: "#333734",
+  borderStrong: "#3f453f34",
 
   textPrimary: "#eef2ee",
   textSecondary: "#9aa69f",

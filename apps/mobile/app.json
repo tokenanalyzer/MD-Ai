@@ -6,15 +6,15 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0a0d0c",
+    "backgroundColor": "#1a1a1a",
     "icon": "./assets/logo.png",
     "platforms": ["android", "web"],
     "android": {
       "package": "com.venom31.mdai",
-      "backgroundColor": "#0a0d0c",
+      "backgroundColor": "#1a1a1a",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#0a0d0c"
+        "backgroundColor": "#1a1a1a"
       }
     },
     "web": {
@@ -31,7 +31,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
-          "backgroundColor": "#0a0d0c",
+          "backgroundColor": "#1a1a1a",
           "resizeMode": "contain"
         }
       ]
