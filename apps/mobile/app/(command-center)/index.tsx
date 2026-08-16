@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { Link } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { SystemStatus } from "../../src/features/command-center/SystemStatus";
 import { AICoreCard } from "../../src/features/command-center/AICoreCard";
 import { AgentNetwork } from "../../src/features/command-center/AgentNetwork";
@@ -20,9 +21,10 @@ import { CommandCenter3D } from "../../src/features/command-center/scene3d/Comma
  * on this screen is completely unaffected either way.
  */
 export default function CommandCenterScreen() {
+  const topPadding = useScreenTopPadding();
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
         <View>
           <Text style={styles.title}>MD AI</Text>
           <Text style={styles.subtitle}>Command Center</Text>
@@ -61,7 +63,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,

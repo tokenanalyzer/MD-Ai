@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { StatusDot } from "../../src/components/StatusDot";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useVaultStore } from "../../src/state/vaultStore";
@@ -13,6 +14,7 @@ function availabilityToStatus(a: ModelRegistryEntryDto["availability"]) {
 }
 
 export default function VaultScreen() {
+  const topPadding = useScreenTopPadding();
   const { entries, loading, loadAll, addAndTestKey, removeKey, setDefault, setDefaultModel } = useVaultStore();
   const { routingMode, setRoutingMode, preferredProviderId, preferredModelId, setManualModel } = useChatStore();
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
@@ -24,7 +26,7 @@ export default function VaultScreen() {
   const providerList = Object.values(entries).sort((a, b) => a.provider.displayName.localeCompare(b.provider.displayName));
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>‹ Back</Text>
@@ -172,7 +174,7 @@ export default function VaultScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: {
     flexDirection: "row",
     alignItems: "center",

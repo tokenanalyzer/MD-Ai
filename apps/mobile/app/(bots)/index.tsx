@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography, type StatusColor } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { StatusDot } from "../../src/components/StatusDot";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useBotsStore } from "../../src/state/botsStore";
@@ -158,6 +159,7 @@ function BotCard({ bot }: { bot: BotDto }) {
 }
 
 export default function BotFleetScreen() {
+  const topPadding = useScreenTopPadding();
   const { bots, loading, error, loadBots } = useBotsStore();
 
   useEffect(() => {
@@ -165,7 +167,7 @@ export default function BotFleetScreen() {
   }, [loadBots]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>‹ Back</Text>
@@ -193,7 +195,7 @@ export default function BotFleetScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },

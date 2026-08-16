@@ -11,12 +11,14 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { PulseDot } from "../../src/components/PulseDot";
 import { MessageBubble } from "../../src/components/MessageBubble";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useChatStore } from "../../src/state/chatStore";
 
 export default function ChatScreen() {
+  const topPadding = useScreenTopPadding();
   const {
     messages,
     connection,
@@ -43,7 +45,7 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
         <View>
           <Text style={styles.headerTitle}>MD AI</Text>
           <View style={styles.statusRow}>
@@ -139,7 +141,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,

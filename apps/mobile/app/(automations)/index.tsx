@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, RefreshControl, Alert } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { Panel } from "../../src/components/Panel";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -115,6 +116,7 @@ function AutomationCard({ automation }: { automation: AutomationDto }) {
  * never invents a separate execution path.
  */
 export default function AutomationsScreen() {
+  const topPadding = useScreenTopPadding();
   const { automations, loading, error, lastCreatedWebhookSecret, loadAutomations, create } = useAutomationsStore();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -188,7 +190,7 @@ export default function AutomationsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
@@ -332,7 +334,7 @@ export default function AutomationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },

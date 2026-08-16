@@ -6,6 +6,7 @@ import { Panel } from "../../src/components/Panel";
 import { EmptyState } from "../../src/components/EmptyState";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useMemoryStore } from "../../src/state/memoryStore";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import type { MemoryCategory, MemoryItemDto } from "../../src/api/client";
 
 const CATEGORIES: MemoryCategory[] = [
@@ -86,6 +87,7 @@ function MemoryCard({ item, tab }: { item: MemoryItemDto; tab: Tab }) {
  * conversation — nothing here invents automatic memory writes.
  */
 export default function MemoryScreen() {
+  const topPadding = useScreenTopPadding();
   const { approved, pending, rejected, loading, error, loadAll, remember } = useMemoryStore();
   const [tab, setTab] = useState<Tab>("approved");
   const [composerOpen, setComposerOpen] = useState(false);
@@ -114,7 +116,7 @@ export default function MemoryScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
@@ -193,7 +195,7 @@ export default function MemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
   back: { color: colors.secondary, fontSize: typography.fontSize.md },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },

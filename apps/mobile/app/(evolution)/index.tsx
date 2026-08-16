@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { Panel } from "../../src/components/Panel";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -115,6 +116,7 @@ function ToolApprovalCard({ approval }: { approval: ToolApprovalDto }) {
  * its own.
  */
 export default function EvolutionScreen() {
+  const topPadding = useScreenTopPadding();
   const { proposals, toolApprovals, loading, error, sweeping, load, runSweepNow } = useEvolutionStore();
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function EvolutionScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
@@ -186,7 +188,7 @@ export default function EvolutionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },

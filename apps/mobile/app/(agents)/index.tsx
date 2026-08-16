@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { Panel } from "../../src/components/Panel";
 import { PulseDot } from "../../src/components/PulseDot";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -67,6 +68,7 @@ function AgentRow({ agent }: { agent: AgentCardDto }) {
  * Center panel and this full list never disagree.
  */
 export default function AgentsScreen() {
+  const topPadding = useScreenTopPadding();
   const { agents, loading, error, loadAgents } = useAgentsStore();
 
   useEffect(() => {
@@ -74,7 +76,7 @@ export default function AgentsScreen() {
   }, [loadAgents]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
@@ -99,7 +101,7 @@ export default function AgentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },

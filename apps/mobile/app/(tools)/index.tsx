@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { Panel } from "../../src/components/Panel";
 import { PulseDot } from "../../src/components/PulseDot";
 import { EventRow } from "../../src/components/EventRow";
@@ -131,6 +132,7 @@ function ToolCard({ tool }: { tool: ToolDefinitionDto }) {
  * surfaces raw arguments/results — only safe status metadata.
  */
 export default function ToolsScreen() {
+  const topPadding = useScreenTopPadding();
   const { tools, loading, error, loadTools } = useToolsStore();
   const connect = useEventsStore((s) => s.connect);
 
@@ -140,7 +142,7 @@ export default function ToolsScreen() {
   }, [loadTools, connect]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
@@ -165,7 +167,7 @@ export default function ToolsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },

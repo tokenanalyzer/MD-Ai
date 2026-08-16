@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, Alert } from 
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { Panel } from "../../src/components/Panel";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { getBackendUrl, setBackendUrl, wsUrlFrom } from "../../src/api/backendUrl";
@@ -19,6 +20,7 @@ import { registerForPushNotificationsAsync } from "../../src/notifications/regis
  * requires once the app is already running on a device.
  */
 export default function SettingsScreen() {
+  const topPadding = useScreenTopPadding();
   const [currentUrl, setCurrentUrl] = useState("");
   const [draftUrl, setDraftUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -56,7 +58,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹ Back</Text>
@@ -115,7 +117,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bgBase },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
   back: { color: colors.secondary, fontSize: typography.fontSize.md, width: 50 },
   title: { color: colors.textPrimary, fontSize: typography.fontSize.lg, fontWeight: "700" },
