@@ -2,6 +2,7 @@ import "../setupEnv.js";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Redis } from "ioredis";
 import { Queue } from "bullmq";
+import pino from "pino";
 import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from "undici";
 import { EventBus } from "../../src/core/events/eventBus.js";
 import { ModelRegistryService } from "../../src/core/registry/modelRegistryService.js";
@@ -23,6 +24,8 @@ const noopSender: NotificationSender = {
     return { delivered: [], failed: [] };
   },
 };
+
+const logger = pino({ level: "silent" });
 
 let ownerId = "";
 let mockAgent: MockAgent;
@@ -67,6 +70,7 @@ function makeEngine(eventBus: EventBus = new EventBus(pool)) {
     toolRegistry,
     ownerId,
     notificationSender: noopSender,
+    logger,
   });
 }
 
@@ -294,6 +298,40 @@ describe("Automation Engine trigger_type wiring (M10)", () => {
       const mine = repeatables.find((r) => r.name === automation.id);
       expect(mine).toBeDefined();
       expect(mine?.pattern).toBe("0 0 1 1 *");
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("an automation with a syntactically invalid cron string is skipped and logged, not fatal to start() (Cloud Run bootstrap regression)", async () => {
+    // trigger_config is an open record (createAutomationBodySchema never
+    // validates cron syntax at creation time), so this is a real, reachable
+    // state — not a hypothetical. Before the fix, BullMQ's cron-parser
+    // throwing inside queue.add() here would reject start() and abort the
+    // whole backend's bootstrap for every automation, not just this one.
+    const broken = await createAutomation(pool, {
+      name: "Broken cron",
+      triggerType: "schedule",
+      triggerConfig: { cron: "not a valid cron expression" },
+      actionType: "notification",
+      actionConfig: { title: "x", summary: "x" },
+    });
+    const healthy = await createAutomation(pool, {
+      name: "Healthy cron",
+      triggerType: "schedule",
+      triggerConfig: { cron: "0 0 1 1 *" },
+      actionType: "notification",
+      actionConfig: { title: "x", summary: "x" },
+    });
+
+    const engine = makeEngine();
+    await expect(engine.start()).resolves.toBeUndefined();
+    try {
+      const repeatables = await engine.getQueue()!.getRepeatableJobs();
+      expect(repeatables.find((r) => r.name === broken.id)).toBeUndefined();
+      const healthyJob = repeatables.find((r) => r.name === healthy.id);
+      expect(healthyJob).toBeDefined();
+      expect(healthyJob?.pattern).toBe("0 0 1 1 *");
     } finally {
       await engine.stop();
     }

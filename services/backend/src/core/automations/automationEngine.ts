@@ -1,5 +1,6 @@
 import { Queue, QueueEvents, Worker, type Job } from "bullmq";
 import type pg from "pg";
+import type { Logger } from "pino";
 import type { AgentRegistry, ModelRegistry, NotificationSender } from "@mdai/shared-types";
 import { getRedisConnection } from "../../queue/connection.js";
 import type { EventBus } from "../events/eventBus.js";
@@ -38,6 +39,7 @@ export interface AutomationEngineDeps {
   toolRegistry: ToolRegistryService;
   ownerId: string;
   notificationSender: NotificationSender;
+  logger: Logger;
 }
 
 /**
@@ -88,17 +90,32 @@ export class AutomationEngine {
     for (const automation of scheduled) {
       const cron = automation.trigger_config["cron"];
       if (typeof cron !== "string" || !cron) continue; // malformed config — skip quietly, never crash boot
-      await this.queue.add(
-        automation.id,
-        { automationId: automation.id, triggerType: "schedule" as const },
-        {
-          repeat: { pattern: cron },
-          jobId: `automation-repeat-${automation.id}`,
-          attempts: DEFAULT_RETRY_ATTEMPTS,
-          removeOnComplete: { count: 50 },
-          removeOnFail: { count: 50 },
-        },
-      );
+      try {
+        await this.queue.add(
+          automation.id,
+          { automationId: automation.id, triggerType: "schedule" as const },
+          {
+            repeat: { pattern: cron },
+            jobId: `automation-repeat-${automation.id}`,
+            attempts: DEFAULT_RETRY_ATTEMPTS,
+            removeOnComplete: { count: 50 },
+            removeOnFail: { count: 50 },
+          },
+        );
+      } catch (err) {
+        // `cron` is well-typed here but `createAutomationBodySchema` never
+        // validates cron *syntax* at creation time (trigger_config is an
+        // open record) — BullMQ's cron-parser throws synchronously inside
+        // queue.add() for a malformed expression. One bad automation must
+        // never block every other automation's schedule from registering,
+        // or block the engine (and therefore the whole backend) from
+        // finishing boot — same "skip and log, never crash boot" posture
+        // as index.ts's external MCP server connection loop.
+        this.deps.logger.error(
+          { automationId: automation.id, cron, err },
+          "failed to schedule automation — skipping it, other automations are unaffected",
+        );
+      }
     }
 
     this.unsubscribeEvents = this.deps.eventBus.subscribe((row) => void this.handleEvent(row));

@@ -42,6 +42,7 @@ const automationEngine = new AutomationEngine({
   toolRegistry,
   ownerId,
   notificationSender: noopSender,
+  logger,
 });
 const app = createApp({ pool, redis, queues: [], eventBus, modelRegistry, agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine, logger });
 

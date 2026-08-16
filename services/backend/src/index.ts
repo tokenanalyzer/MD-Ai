@@ -224,6 +224,7 @@ async function main(): Promise<void> {
         toolRegistry,
         ownerId: owner.id,
         notificationSender: expoPushSender,
+        logger,
       });
       await automationEngine.start();
 

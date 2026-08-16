@@ -1,3 +1,4 @@
+import pino from "pino";
 import type pg from "pg";
 import type { Redis } from "ioredis";
 import type { NotificationSender } from "@mdai/shared-types";
@@ -36,6 +37,8 @@ const noopNotificationSender: NotificationSender = {
     return { delivered: [], failed: [] };
   },
 };
+
+const logger = pino({ level: "silent" });
 
 /** Mirrors src/index.ts's boot-time agent/tool/bot registration, for tests that need a real `createApp` deps object. The returned `BotEngine`/`AutomationEngine` are NOT started (`.start()` is never called) — most tests never touch bots/automations and starting either would schedule real BullMQ repeatable jobs against the shared test Redis instance; bot/automation-specific tests call `.start()`/`.runNow()` themselves. */
 export function buildTestAgentRegistry(
@@ -96,6 +99,7 @@ export function buildTestAgentRegistry(
     toolRegistry,
     ownerId: "",
     notificationSender: noopNotificationSender,
+    logger,
   });
 
   return { agentRegistry, memoryEngine, toolRegistry, botRegistry, botEngine, automationEngine };
