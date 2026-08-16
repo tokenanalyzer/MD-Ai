@@ -40,6 +40,7 @@ export function QuickActions() {
     },
     { key: "system-status", label: "System Status", onPress: () => void refreshStatus() },
     { key: "agents", label: "Agents", onPress: () => router.push("/(agents)") },
+    { key: "vault", label: "API Keys", onPress: () => router.push("/(vault)") },
     { key: "models", label: "Models", onPress: () => router.push("/(models)") },
     { key: "memory", label: "Memory", onPress: () => router.push("/(memory)") },
     { key: "tools", label: "Tools", onPress: () => router.push("/(tools)") },
