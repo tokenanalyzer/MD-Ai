@@ -98,7 +98,7 @@ describe("routing modes", () => {
     await collectTaskStream(`${wsBaseUrl}/ws/tasks/${taskRes.body.data.id}?token=${token}`);
 
     const tasksRes = await request(app).get(`/conversations/${conv.body.data.id}/tasks`).set("Authorization", `Bearer ${token}`);
-    expect(tasksRes.body.data[0].modelId).toBe("groq/llama-3.3-70b-versatile");
+    expect(tasksRes.body.data[0].modelId).toBe("groq/openai/gpt-oss-120b");
 
     const events = await pool.query("SELECT payload FROM events WHERE task_id = $1 AND event_type = 'model.selected'", [
       taskRes.body.data.id,

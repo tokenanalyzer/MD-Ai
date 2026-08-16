@@ -26,13 +26,18 @@ const PROVIDER_CONFIGS: OpenAICompatibleConfig[] = [
     id: "gemini",
     displayName: "Google Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    defaultModel: "gemini-1.5-flash",
+    // gemini-1.5-flash is stale (M1-era default); Gemini 2.5 Flash is the
+    // current generation. See migration 0023.
+    defaultModel: "gemini-2.5-flash",
   },
   {
     id: "groq",
     displayName: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    // llama-3.3-70b-versatile is deprecated on Groq (announced June 2026);
+    // openai/gpt-oss-120b is Groq's own recommended replacement. See
+    // migration 0023.
+    defaultModel: "openai/gpt-oss-120b",
   },
   {
     id: "sambanova",
@@ -44,7 +49,9 @@ const PROVIDER_CONFIGS: OpenAICompatibleConfig[] = [
     id: "openrouter",
     displayName: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
-    defaultModel: "meta-llama/llama-3.1-70b-instruct",
+    // llama-3.1-70b-instruct is stale (M1-era default); llama-3.3-70b is
+    // the current generation on OpenRouter. See migration 0023.
+    defaultModel: "meta-llama/llama-3.3-70b-instruct",
   },
 ];
 

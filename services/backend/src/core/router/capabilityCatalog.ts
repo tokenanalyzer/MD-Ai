@@ -37,6 +37,16 @@ export const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     modality: "multimodal",
     tags: ["fast", "long-context", "vision"],
   },
+  "gemini/gemini-2.5-flash": {
+    contextLength: 1_000_000,
+    supportsTools: true,
+    supportsVision: true,
+    supportsReasoning: true,
+    supportsStreaming: true,
+    supportsStructuredOutput: true,
+    modality: "multimodal",
+    tags: ["fast", "long-context", "vision", "reasoning"],
+  },
   "groq/llama-3.3-70b-versatile": {
     contextLength: 128_000,
     supportsTools: true,
@@ -46,6 +56,16 @@ export const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsStructuredOutput: true,
     modality: "text",
     tags: ["fast"],
+  },
+  "groq/openai/gpt-oss-120b": {
+    contextLength: 131_072,
+    supportsTools: true,
+    supportsVision: false,
+    supportsReasoning: true,
+    supportsStreaming: true,
+    supportsStructuredOutput: true,
+    modality: "text",
+    tags: ["fast", "reasoning", "tool-calling"],
   },
   "sambanova/Meta-Llama-3.1-70B-Instruct": {
     contextLength: 128_000,
@@ -66,6 +86,16 @@ export const KNOWN_MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
     supportsStructuredOutput: true,
     modality: "text",
     tags: [],
+  },
+  "openrouter/meta-llama/llama-3.3-70b-instruct": {
+    contextLength: 131_072,
+    supportsTools: true,
+    supportsVision: false,
+    supportsReasoning: false,
+    supportsStreaming: true,
+    supportsStructuredOutput: true,
+    modality: "text",
+    tags: ["fast"],
   },
 };
 
