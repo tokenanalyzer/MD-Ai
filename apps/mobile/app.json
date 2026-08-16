@@ -22,7 +22,20 @@
       "output": "single",
       "favicon": "./assets/logo.png"
     },
-    "plugins": ["expo-router", "expo-secure-store", "expo-dev-client", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-dev-client",
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "backgroundColor": "#0a0d0c",
+          "resizeMode": "contain"
+        }
+      ]
+    ],
     "extra": {
       "mdaiBackendUrl": "http://10.0.2.2:8080"
     }
