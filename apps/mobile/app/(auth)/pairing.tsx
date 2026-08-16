@@ -1,22 +1,34 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useSessionStore } from "../../src/state/sessionStore";
 import { ApiError } from "../../src/api/client";
+import { getBackendUrl, setBackendUrl } from "../../src/api/backendUrl";
 
 export default function PairingScreen() {
   const pair = useSessionStore((s) => s.pair);
   const [pairingCode, setPairingCode] = useState("");
   const [deviceName, setDeviceName] = useState("My Phone");
+  const [backendUrl, setBackendUrlDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getBackendUrl().then(setBackendUrlDraft);
+  }, []);
 
   async function handlePair() {
     setLoading(true);
     setError(null);
     try {
+      const trimmedUrl = backendUrl.trim().replace(/\/$/, "");
+      if (!/^https?:\/\//.test(trimmedUrl)) {
+        setError("Backend URL must start with http:// or https://");
+        return;
+      }
+      await setBackendUrl(trimmedUrl);
       await pair(pairingCode.trim().toUpperCase(), deviceName.trim() || "My Phone");
       router.replace("/(command-center)");
     } catch (err) {
@@ -33,7 +45,20 @@ export default function PairingScreen() {
         <Text style={styles.subtitle}>Private personal intelligence, running on your own backend.</Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Pairing code</Text>
+          <Text style={styles.label}>Backend URL</Text>
+          <Text style={styles.hint}>Where your MD AI backend is running.</Text>
+          <TextInput
+            style={styles.input}
+            value={backendUrl}
+            onChangeText={setBackendUrlDraft}
+            placeholder="https://your-backend.example.com"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+
+          <Text style={[styles.label, { marginTop: spacing.lg }]}>Pairing code</Text>
           <Text style={styles.hint}>Printed once in your backend's startup log.</Text>
           <TextInput
             style={styles.input}
