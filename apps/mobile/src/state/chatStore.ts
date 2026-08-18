@@ -8,7 +8,7 @@ import {
   type TaskCategory,
   type TaskTreeNodeDto,
 } from "../api/client";
-import { buildProviderKeysForRequest } from "../security/secureVault";
+import { buildProviderKeysForRequest, buildToolKeysForRequest } from "../security/secureVault";
 import { openTaskStream } from "../realtime/chatSocket";
 
 export type ChatMessageRole = "user" | "assistant";
@@ -85,6 +85,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     lastUserText = text;
     const conversationId = await get().ensureConversation();
     const providerKeys = await buildProviderKeysForRequest();
+    const toolKeys = await buildToolKeysForRequest();
 
     if (Object.keys(providerKeys).length === 0) {
       set({ connection: "error", lastError: "No provider configured yet — add an API key in Settings first." });
@@ -118,6 +119,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const task = await sendMessage(conversationId, {
         text,
         providerKeys,
+        toolKeys: Object.keys(toolKeys).length > 0 ? toolKeys : undefined,
         preferredProviderId: get().preferredProviderId,
         preferredModelId: get().preferredModelId,
         routingMode: get().routingMode,

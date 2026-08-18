@@ -140,6 +140,26 @@ export function testProviderConnection(
   return request(`/providers/${providerId}/test-connection`, { method: "POST", body: { apiKey } });
 }
 
+// ---- search providers --------------------------------------------------------
+
+export interface SearchProviderDto {
+  id: string;
+  displayName: string;
+}
+
+export function listSearchProviders(): Promise<SearchProviderDto[]> {
+  return request("/search-providers");
+}
+
+/**
+ * Search-provider (Brave/Tavily) keys have no persisted config row, unlike
+ * `testProviderConnection` — the caller stores the key on-device only once
+ * this confirms it works (apps/mobile/src/security/secureVault.ts).
+ */
+export function testSearchProviderConnection(providerId: string, apiKey: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+  return request(`/search-providers/${providerId}/test-connection`, { method: "POST", body: { apiKey } });
+}
+
 export function setDefaultProviderConfig(providerId: string, configId: string): Promise<ProviderConfigDto> {
   return request(`/providers/${providerId}/configs/${configId}`, { method: "PATCH", body: { isDefault: true } });
 }
@@ -200,6 +220,8 @@ export function sendMessage(
   input: {
     text: string;
     providerKeys: Record<string, string>;
+    /** Request-scoped tool credentials (e.g. Brave/Tavily search keys) — same non-persistence guarantee as providerKeys. */
+    toolKeys?: Record<string, string>;
     preferredProviderId?: string;
     preferredModelId?: string;
     taskCategory?: TaskCategory;
@@ -211,6 +233,7 @@ export function sendMessage(
     body: {
       parts: [{ type: "text", text: input.text }],
       providerKeys: input.providerKeys,
+      toolKeys: input.toolKeys,
       preferredProviderId: input.preferredProviderId,
       preferredModelId: input.preferredModelId,
       taskCategory: input.taskCategory,

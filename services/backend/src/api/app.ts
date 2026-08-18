@@ -12,6 +12,7 @@ import { requestLogger } from "./middleware/requestLogger.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./routes/auth.js";
 import { providersRouter } from "./routes/providers.js";
+import { searchProvidersRouter } from "./routes/searchProviders.js";
 import { modelsRouter } from "./routes/models.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { tasksRouter } from "./routes/tasks.js";
@@ -78,6 +79,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/health", healthRouter(deps.pool, deps.redis, deps.queues));
   app.use("/auth", authRouter(deps.pool));
   app.use("/providers", providersRouter(deps.pool, deps.modelRegistry));
+  app.use("/search-providers", searchProvidersRouter(deps.pool));
   app.use("/models", modelsRouter(deps.pool, deps.modelRegistry));
   app.use("/agents", agentsRouter(deps.pool, deps.agentRegistry));
   app.use("/memory", memoryRouter(deps.pool, deps.memoryEngine));

@@ -75,3 +75,64 @@ export async function buildProviderKeysForRequest(): Promise<Record<string, stri
   }
   return result;
 }
+
+/**
+ * Same vault, same on-device-only guarantee, separate index/prefix — a
+ * search-provider key (Brave/Tavily) is a `toolKeys` credential, never a
+ * `providerKeys` one (see schemas.ts on the backend), so it can't share
+ * `mdai.provider.index` with LLM provider keys without a request builder
+ * having to guess which ids belong in which map.
+ */
+const SEARCH_KEY_PREFIX = "mdai.searchprovider.";
+const SEARCH_INDEX_KEY = "mdai.searchprovider.index";
+
+function searchKeyStorageId(providerId: string): string {
+  return `${SEARCH_KEY_PREFIX}${providerId}`;
+}
+
+async function readSearchIndex(): Promise<string[]> {
+  const raw = await store.getItemAsync(SEARCH_INDEX_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
+}
+
+async function writeSearchIndex(providerIds: string[]): Promise<void> {
+  await store.setItemAsync(SEARCH_INDEX_KEY, JSON.stringify(providerIds));
+}
+
+export async function setSearchProviderKey(providerId: string, apiKey: string): Promise<void> {
+  await store.setItemAsync(searchKeyStorageId(providerId), apiKey);
+  const index = await readSearchIndex();
+  if (!index.includes(providerId)) {
+    await writeSearchIndex([...index, providerId]);
+  }
+}
+
+export async function getSearchProviderKey(providerId: string): Promise<string | null> {
+  return store.getItemAsync(searchKeyStorageId(providerId));
+}
+
+export async function deleteSearchProviderKey(providerId: string): Promise<void> {
+  await store.deleteItemAsync(searchKeyStorageId(providerId));
+  const index = await readSearchIndex();
+  await writeSearchIndex(index.filter((id) => id !== providerId));
+}
+
+export async function listConfiguredSearchProviderIds(): Promise<string[]> {
+  return readSearchIndex();
+}
+
+/** Builds the `toolKeys` map a chat request needs — the search-provider counterpart to `buildProviderKeysForRequest`. */
+export async function buildToolKeysForRequest(): Promise<Record<string, string>> {
+  const ids = await listConfiguredSearchProviderIds();
+  const entries = await Promise.all(ids.map(async (id) => [id, await getSearchProviderKey(id)] as const));
+  const result: Record<string, string> = {};
+  for (const [id, key] of entries) {
+    if (key) result[id] = key;
+  }
+  return result;
+}

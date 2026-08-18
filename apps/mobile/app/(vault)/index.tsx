@@ -6,6 +6,7 @@ import { useScreenTopPadding } from "../../src/hooks/useScreenTopPadding";
 import { StatusDot } from "../../src/components/StatusDot";
 import { PrimaryButton } from "../../src/components/PrimaryButton";
 import { useVaultStore } from "../../src/state/vaultStore";
+import { useSearchProviderVaultStore } from "../../src/state/searchProviderVaultStore";
 import { useChatStore } from "../../src/state/chatStore";
 import type { ModelRegistryEntryDto } from "../../src/api/client";
 
@@ -16,14 +17,26 @@ function availabilityToStatus(a: ModelRegistryEntryDto["availability"]) {
 export default function VaultScreen() {
   const topPadding = useScreenTopPadding();
   const { entries, loading, loadAll, addAndTestKey, removeKey, setDefault, setDefaultModel } = useVaultStore();
+  const {
+    entries: searchEntries,
+    loading: searchLoading,
+    loadAll: loadSearchProviders,
+    addAndTestKey: addAndTestSearchKey,
+    removeKey: removeSearchKey,
+  } = useSearchProviderVaultStore();
   const { routingMode, setRoutingMode, preferredProviderId, preferredModelId, setManualModel } = useChatStore();
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
+  const [draftSearchKeys, setDraftSearchKeys] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void loadAll();
-  }, [loadAll]);
+    void loadSearchProviders();
+  }, [loadAll, loadSearchProviders]);
 
   const providerList = Object.values(entries).sort((a, b) => a.provider.displayName.localeCompare(b.provider.displayName));
+  const searchProviderList = Object.values(searchEntries).sort((a, b) =>
+    a.provider.displayName.localeCompare(b.provider.displayName),
+  );
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
@@ -168,6 +181,61 @@ export default function VaultScreen() {
           );
         })}
         {loading && providerList.length === 0 && <Text style={styles.subtitle}>Loading providers…</Text>}
+
+        <Text style={styles.sectionHeading}>Search Providers</Text>
+        <Text style={styles.subtitle}>
+          Separate from the model keys above — Research and specialist agents need one of these to actually search
+          the web. Without one, they answer from training knowledge only and say so.
+        </Text>
+
+        {searchProviderList.map(({ provider, keyLast4, testing, testError }) => (
+          <View key={provider.id} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.providerName}>{provider.displayName}</Text>
+              <View style={styles.statusRow}>
+                <StatusDot status={testing ? "working" : keyLast4 ? "connected" : "idle"} />
+                <Text style={styles.statusLabel}>{testing ? "Testing…" : keyLast4 ? "Connected" : "Not configured"}</Text>
+              </View>
+            </View>
+
+            {keyLast4 && (
+              <View style={styles.configRow}>
+                <Text style={styles.configLabel}>Key ending in {keyLast4}</Text>
+                <Pressable onPress={() => removeSearchKey(provider.id)}>
+                  <Text style={[styles.actionLink, { color: colors.danger }]}>Remove</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {testError && <Text style={styles.errorText}>{testError}</Text>}
+
+            <View style={styles.addRow}>
+              <TextInput
+                style={styles.input}
+                placeholder={`${provider.displayName} API key`}
+                placeholderTextColor={colors.textTertiary}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={draftSearchKeys[provider.id] ?? ""}
+                onChangeText={(text) => setDraftSearchKeys((s) => ({ ...s, [provider.id]: text }))}
+              />
+              <PrimaryButton
+                label="Test & Save"
+                variant="ghost"
+                loading={testing}
+                disabled={!draftSearchKeys[provider.id]}
+                onPress={async () => {
+                  const key = draftSearchKeys[provider.id];
+                  if (!key) return;
+                  await addAndTestSearchKey(provider.id, key);
+                  setDraftSearchKeys((s) => ({ ...s, [provider.id]: "" }));
+                }}
+              />
+            </View>
+          </View>
+        ))}
+        {searchLoading && searchProviderList.length === 0 && <Text style={styles.subtitle}>Loading search providers…</Text>}
       </ScrollView>
     </View>
   );
@@ -210,6 +278,12 @@ const styles = StyleSheet.create({
   segmentText: { color: colors.textTertiary, fontSize: typography.fontSize.xs, fontWeight: "700" },
   segmentTextActive: { color: colors.accent },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+  sectionHeading: {
+    color: colors.textPrimary,
+    fontSize: typography.fontSize.md,
+    fontWeight: "700",
+    marginTop: spacing.lg,
+  },
   card: {
     backgroundColor: colors.bgSurface,
     borderRadius: radius.lg,
