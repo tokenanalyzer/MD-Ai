@@ -37,7 +37,13 @@
       ]
     ],
     "extra": {
-      "mdaiBackendUrl": "http://10.0.2.2:8080"
+      "mdaiBackendUrl": "https://md-ai.onrender.com",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "8291b9a2-89be-47be-a39b-86e4b22e314c"
+      }
     }
   }
 }

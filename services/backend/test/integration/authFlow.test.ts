@@ -50,6 +50,16 @@ describe("auth flow", () => {
     expect(second.body.error.code).toBe("pairing_already_used");
   });
 
+  it("auto-pairs with no code at all, and the resulting token works on protected routes", async () => {
+    const res = await request(app).post("/auth/auto-pair").send({ deviceName: "My Phone", platform: "android" });
+    expect(res.status).toBe(201);
+    expect(res.body.data.accessToken).toBeTypeOf("string");
+    expect(res.body.data.refreshToken).toBeTypeOf("string");
+
+    const providers = await request(app).get("/providers").set("Authorization", `Bearer ${res.body.data.accessToken}`);
+    expect(providers.status).toBe(200);
+  });
+
   it("requires a bearer token on protected routes", async () => {
     const res = await request(app).get("/providers");
     expect(res.status).toBe(401);

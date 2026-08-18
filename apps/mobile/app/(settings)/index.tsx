@@ -26,6 +26,7 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const signOut = useSessionStore((s) => s.signOut);
+  const autoPair = useSessionStore((s) => s.autoPair);
 
   useEffect(() => {
     void getBackendUrl().then((url) => {
@@ -102,9 +103,17 @@ export default function SettingsScreen() {
             label="Sign out"
             variant="danger"
             onPress={() =>
-              Alert.alert("Sign out?", "You'll need to pair this device again.", [
+              Alert.alert("Sign out?", "This device will silently reconnect to the backend the next time you open the app.", [
                 { text: "Cancel", style: "cancel" },
-                { text: "Sign out", style: "destructive", onPress: () => void signOut().then(() => router.replace("/(auth)/pairing")) },
+                {
+                  text: "Sign out",
+                  style: "destructive",
+                  onPress: () =>
+                    void signOut()
+                      .then(() => autoPair())
+                      .then(() => router.replace("/(command-center)"))
+                      .catch(() => router.replace("/")),
+                },
               ])
             }
           />

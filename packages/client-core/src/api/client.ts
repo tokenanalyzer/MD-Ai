@@ -69,6 +69,11 @@ export function pairDevice(input: { pairingCode: string; deviceName: string; pla
   return rawRequest<PairResponse>("/auth/pair", { method: "POST", body: input, unauthenticated: true });
 }
 
+/** No pairing code — owner's choice to skip that gate for a single-owner private deployment (services/backend/src/api/routes/auth.ts's /auto-pair). */
+export function autoPairDevice(input: { deviceName: string; platform: "android" | "pc" | "other" }): Promise<PairResponse> {
+  return rawRequest<PairResponse>("/auth/auto-pair", { method: "POST", body: input, unauthenticated: true });
+}
+
 export function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   return rawRequest("/auth/refresh", { method: "POST", body: { refreshToken }, unauthenticated: true });
 }

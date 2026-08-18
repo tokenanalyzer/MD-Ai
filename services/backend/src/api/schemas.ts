@@ -7,6 +7,12 @@ export const pairBodySchema = z.object({
   pushToken: z.string().optional(),
 });
 
+export const autoPairBodySchema = z.object({
+  deviceName: z.string().min(1).max(200),
+  platform: z.enum(["android", "pc", "other"]),
+  pushToken: z.string().optional(),
+});
+
 export const refreshBodySchema = z.object({
   refreshToken: z.string().min(1),
 });

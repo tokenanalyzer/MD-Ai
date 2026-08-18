@@ -1,7 +1,8 @@
 import { Redirect } from "expo-router";
-import { useSessionStore } from "../src/state/sessionStore";
 
+// _layout.tsx blocks rendering the Stack (below index.tsx) until it has
+// either hydrated a stored session or silently auto-paired a new one — so
+// by the time this route ever mounts, a session is guaranteed to exist.
 export default function Index() {
-  const accessToken = useSessionStore((s) => s.accessToken);
-  return <Redirect href={accessToken ? "/(command-center)" : "/(auth)/pairing"} />;
+  return <Redirect href="/(command-center)" />;
 }

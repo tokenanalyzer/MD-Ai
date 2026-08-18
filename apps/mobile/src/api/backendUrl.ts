@@ -19,7 +19,7 @@ function defaultBackendUrl(): string {
 
 let cached: string | undefined;
 
-/** The owner's own Oracle Cloud backend URL — user-configurable from Settings, not hardcoded for a real deployment. */
+/** The owner's own backend URL — defaults to app.json's extra.mdaiBackendUrl (the owner's real deployment), still user-configurable from Settings for switching to a different backend. */
 export async function getBackendUrl(): Promise<string> {
   if (cached) return cached;
   const stored = await store.getItemAsync(OVERRIDE_KEY);

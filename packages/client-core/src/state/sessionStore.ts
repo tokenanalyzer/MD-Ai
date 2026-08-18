@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { pairDevice, refreshAccessToken, type PairResponse } from "../api/client.js";
+import { autoPairDevice, pairDevice, refreshAccessToken, type PairResponse } from "../api/client.js";
 import { getClientCoreConfig } from "../platform.js";
 
 const ACCESS_TOKEN_KEY = "mdai.session.accessToken";
@@ -11,6 +11,7 @@ interface SessionState {
   hydrated: boolean;
   hydrate: () => Promise<void>;
   pair: (pairingCode: string, deviceName: string, platform?: "android" | "pc" | "other") => Promise<void>;
+  autoPair: (deviceName?: string, platform?: "android" | "pc" | "other") => Promise<void>;
   tryRefresh: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
@@ -40,6 +41,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   pair: async (pairingCode, deviceName, platform = "android") => {
     const res: PairResponse = await pairDevice({ pairingCode, deviceName, platform });
+    await persistTokens(res.accessToken, res.refreshToken);
+    set({ accessToken: res.accessToken, refreshToken: res.refreshToken });
+  },
+
+  autoPair: async (deviceName = "My Phone", platform = "android") => {
+    const res: PairResponse = await autoPairDevice({ deviceName, platform });
     await persistTokens(res.accessToken, res.refreshToken);
     set({ accessToken: res.accessToken, refreshToken: res.refreshToken });
   },

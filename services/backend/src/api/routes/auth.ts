@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type pg from "pg";
-import { pairBodySchema, pushTokenBodySchema, refreshBodySchema, revokeBodySchema } from "../schemas.js";
+import { autoPairBodySchema, pairBodySchema, pushTokenBodySchema, refreshBodySchema, revokeBodySchema } from "../schemas.js";
 import { AppError } from "../errors.js";
 import { authGuard } from "../middleware/authGuard.js";
 import { consumePairingCode } from "../../core/security/pairing.js";
@@ -24,6 +24,34 @@ export function authRouter(pool: pg.Pool): Router {
       if (!result.ok) {
         throw new AppError(401, `pairing_${result.reason}`, "Pairing code is invalid, expired, or already used");
       }
+      const owner = await getOwner(pool);
+      if (!owner) throw new AppError(500, "no_owner", "No owner configured on this backend");
+
+      const refreshToken = generateRefreshToken();
+      const session = await createDeviceSession(pool, {
+        ownerId: owner.id,
+        deviceName: body.deviceName,
+        platform: body.platform,
+        refreshTokenHash: hashRefreshToken(refreshToken),
+        pushToken: body.pushToken,
+      });
+      const { token, expiresIn } = signAccessToken({ sub: session.id, ownerId: owner.id });
+      res.status(201).json({ data: { accessToken: token, refreshToken, expiresIn } });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Owner's explicit choice: skip the pairing-code step entirely — the app
+  // calls this on first launch (with no user-visible screen at all) instead
+  // of showing the pairing form. This trades away the "prove you can read
+  // this backend's own startup logs" gate: anyone who learns this backend's
+  // URL can mint themselves a working session and spend this owner's
+  // provider API keys, no code required. Acceptable only because this is a
+  // single-owner private deployment the owner is choosing to run this way.
+  router.post("/auto-pair", async (req, res, next) => {
+    try {
+      const body = autoPairBodySchema.parse(req.body);
       const owner = await getOwner(pool);
       if (!owner) throw new AppError(500, "no_owner", "No owner configured on this backend");
 
