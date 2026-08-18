@@ -71,7 +71,7 @@ export function createReviewerAgent(): Agent {
       await backendCtx.publishEvent({ type: "review.started", taskId: backendCtx.task.id, targetTaskId: input.targetTaskId ?? "" });
       backendCtx.emit({ taskId: backendCtx.task.id, kind: "agent_progress", label: "Reviewer validating…" });
 
-      const { text } = await backendCtx.completeChat({
+      const { text, modelId } = await backendCtx.completeChat({
         taskCategory: "reasoning",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -95,7 +95,7 @@ export function createReviewerAgent(): Agent {
         decision: result.decision,
       });
 
-      await backendCtx.finishSuccess(result as unknown as Record<string, unknown>);
+      await backendCtx.finishSuccess(result as unknown as Record<string, unknown>, modelId);
     },
 
     async healthCheck() {

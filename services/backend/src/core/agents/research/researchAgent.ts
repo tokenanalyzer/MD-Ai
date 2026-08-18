@@ -156,7 +156,7 @@ export function createResearchAgent(): Agent {
 
       backendCtx.emit({ taskId: backendCtx.task.id, kind: "agent_progress", label: "Research Agent analyzing findings…" });
 
-      const { text } = await backendCtx.completeChat({
+      const { text, modelId } = await backendCtx.completeChat({
         taskCategory: "research",
         messages: [
           { role: "system", content: baseSystemPrompt(hasRetrievedSources) },
@@ -191,7 +191,7 @@ export function createResearchAgent(): Agent {
         toolsUsed: [...new Set([...(parsed.toolsUsed ?? []), ...toolsUsed])],
       };
 
-      await backendCtx.finishSuccess(result as unknown as Record<string, unknown>);
+      await backendCtx.finishSuccess(result as unknown as Record<string, unknown>, modelId);
     },
 
     async healthCheck() {
