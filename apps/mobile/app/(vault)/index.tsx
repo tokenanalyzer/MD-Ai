@@ -27,6 +27,7 @@ export default function VaultScreen() {
   const { routingMode, setRoutingMode, preferredProviderId, preferredModelId, setManualModel } = useChatStore();
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
   const [draftSearchKeys, setDraftSearchKeys] = useState<Record<string, string>>({});
+  const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     void loadAll();
@@ -136,47 +137,59 @@ export default function VaultScreen() {
                 />
               </View>
 
-              {models.length > 0 && (
-                <View style={styles.modelsSection}>
-                  <Text style={styles.modelsHeading}>
-                    Available models {models.length > 0 ? `(${models.length})` : ""}
-                  </Text>
-                  {models.map((model) => {
-                    const defaultConfig = configs.find((c) => c.defaultModelId === model.id);
-                    const isManualPick = routingMode === "manual" && preferredModelId === model.id;
-                    return (
-                      <Pressable
-                        key={model.id}
-                        style={[styles.modelRow, isManualPick && styles.modelRowSelected]}
-                        onPress={() => routingMode === "manual" && setManualModel(provider.id, model.id)}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.modelName}>{model.displayName}</Text>
-                          <Text style={styles.modelMeta}>
-                            {model.capabilities.contextLength.toLocaleString()} ctx
-                            {model.capabilities.supportsVision ? " · vision" : ""}
-                            {model.capabilities.supportsTools ? " · tools" : ""}
-                            {model.capabilities.supportsReasoning ? " · reasoning" : ""}
-                            {model.avgLatencyMs ? ` · ${model.avgLatencyMs}ms avg` : ""}
-                          </Text>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                          <StatusDot status={availabilityToStatus(model.availability)} />
-                          {defaultConfig ? (
-                            <Text style={styles.defaultBadge}>default</Text>
-                          ) : (
-                            connected && (
-                              <Pressable onPress={() => setDefaultModel(provider.id, connected.id, model.id)}>
-                                <Text style={styles.actionLink}>Set default</Text>
-                              </Pressable>
-                            )
-                          )}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
+              {models.length > 0 && (() => {
+                const expanded = expandedModels[provider.id] ?? false;
+                const currentDefault = models.find((m) => configs.some((c) => c.defaultModelId === m.id));
+                return (
+                  <View style={styles.modelsSection}>
+                    <Pressable
+                      style={styles.modelsHeadingRow}
+                      onPress={() => setExpandedModels((s) => ({ ...s, [provider.id]: !expanded }))}
+                    >
+                      <Text style={styles.modelsHeading}>Available models ({models.length})</Text>
+                      <Text style={styles.modelsToggle}>{expanded ? "Hide ▲" : "Show ▾"}</Text>
+                    </Pressable>
+                    {!expanded && currentDefault && (
+                      <Text style={styles.modelsSummary}>Using: {currentDefault.displayName}</Text>
+                    )}
+                    {expanded &&
+                      models.map((model) => {
+                        const defaultConfig = configs.find((c) => c.defaultModelId === model.id);
+                        const isManualPick = routingMode === "manual" && preferredModelId === model.id;
+                        return (
+                          <Pressable
+                            key={model.id}
+                            style={[styles.modelRow, isManualPick && styles.modelRowSelected]}
+                            onPress={() => routingMode === "manual" && setManualModel(provider.id, model.id)}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.modelName}>{model.displayName}</Text>
+                              <Text style={styles.modelMeta}>
+                                {model.capabilities.contextLength.toLocaleString()} ctx
+                                {model.capabilities.supportsVision ? " · vision" : ""}
+                                {model.capabilities.supportsTools ? " · tools" : ""}
+                                {model.capabilities.supportsReasoning ? " · reasoning" : ""}
+                                {model.avgLatencyMs ? ` · ${model.avgLatencyMs}ms avg` : ""}
+                              </Text>
+                            </View>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                              <StatusDot status={availabilityToStatus(model.availability)} />
+                              {defaultConfig ? (
+                                <Text style={styles.defaultBadge}>default</Text>
+                              ) : (
+                                connected && (
+                                  <Pressable onPress={() => setDefaultModel(provider.id, connected.id, model.id)}>
+                                    <Text style={styles.actionLink}>Set default</Text>
+                                  </Pressable>
+                                )
+                              )}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                  </View>
+                );
+              })()}
             </View>
           );
         })}
@@ -322,7 +335,10 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
   },
   modelsSection: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
-  modelsHeading: { color: colors.textSecondary, fontSize: typography.fontSize.xs, fontWeight: "700", marginBottom: spacing.xs },
+  modelsHeadingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  modelsHeading: { color: colors.textSecondary, fontSize: typography.fontSize.xs, fontWeight: "700" },
+  modelsToggle: { color: colors.secondary, fontSize: typography.fontSize.xs, fontWeight: "600" },
+  modelsSummary: { color: colors.textTertiary, fontSize: typography.fontSize.xs, marginTop: spacing.xs },
   modelRow: {
     flexDirection: "row",
     alignItems: "center",

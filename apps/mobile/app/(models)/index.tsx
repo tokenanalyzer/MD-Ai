@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
@@ -74,9 +74,11 @@ function ModelRow({
 
 function ProviderCard({ entry }: { entry: ProviderVaultEntry }) {
   const { routingMode, preferredProviderId, preferredModelId } = useChatStore();
+  const [expanded, setExpanded] = useState(false);
   const connected = entry.configs.find((c) => c.status === "connected");
   const status = connected ? "Connected" : entry.configs.length > 0 ? "Error" : "Not configured";
   const models = [...entry.models].sort((a, b) => b.userPriority - a.userPriority);
+  const currentDefault = models.find((m) => entry.configs.some((c) => c.defaultModelId === m.id));
 
   return (
     <Panel style={styles.card}>
@@ -89,16 +91,25 @@ function ProviderCard({ entry }: { entry: ProviderVaultEntry }) {
       {models.length === 0 ? (
         <Text style={styles.empty}>No models discovered for this provider yet.</Text>
       ) : (
-        <View style={styles.modelsList}>
-          {models.map((model) => (
-            <ModelRow
-              key={model.id}
-              entry={entry}
-              model={model}
-              isCurrent={routingMode === "manual" && preferredProviderId === entry.provider.id && preferredModelId === model.id}
-            />
-          ))}
-        </View>
+        <>
+          <Pressable style={styles.modelsToggleRow} onPress={() => setExpanded((v) => !v)}>
+            <Text style={styles.modelsToggleLabel}>{models.length} model{models.length === 1 ? "" : "s"}</Text>
+            <Text style={styles.modelsToggle}>{expanded ? "Hide ▲" : "Show ▾"}</Text>
+          </Pressable>
+          {!expanded && currentDefault && <Text style={styles.empty}>Using: {currentDefault.displayName}</Text>}
+          {expanded && (
+            <View style={styles.modelsList}>
+              {models.map((model) => (
+                <ModelRow
+                  key={model.id}
+                  entry={entry}
+                  model={model}
+                  isCurrent={routingMode === "manual" && preferredProviderId === entry.provider.id && preferredModelId === model.id}
+                />
+              ))}
+            </View>
+          )}
+        </>
       )}
     </Panel>
   );
@@ -170,7 +181,10 @@ const styles = StyleSheet.create({
   providerName: { color: colors.textPrimary, fontSize: typography.fontSize.md, fontWeight: "700", flex: 1 },
   providerStatus: { color: colors.textTertiary, fontSize: typography.fontSize.xs },
   empty: { color: colors.textTertiary, fontSize: typography.fontSize.xs },
-  modelsList: { gap: spacing.sm },
+  modelsToggleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  modelsToggleLabel: { color: colors.textSecondary, fontSize: typography.fontSize.xs, fontWeight: "700" },
+  modelsToggle: { color: colors.secondary, fontSize: typography.fontSize.xs, fontWeight: "600" },
+  modelsList: { gap: spacing.sm, marginTop: spacing.sm },
   modelRow: {
     flexDirection: "row",
     alignItems: "flex-start",
